@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Molecular Simulation - Over the Top!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Modern, clean font */
+            margin: 0;
+            padding: 0;
+            background-color: #121212; /* Dark background for contrast */
+            color: #eee; /* Light text color */
+            overflow: hidden; /* Prevent scrollbars during animation */
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(to bottom, #1a2a6c, #b21f1f, #fdbb2d); /* Dramatic gradient */
+            overflow: hidden; /* Hide overflowing particles */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #simulationCanvas {
+            border: 2px solid rgba(255, 255, 255, 0.2); /* Subtle border */
+            box-shadow: 0 0 50px 10px rgba(0, 0, 0, 0.5); /* Glow effect */
+            background-color: rgba(0, 0, 0, 0.4); /* Slightly transparent background */
+            border-radius: 15px; /* Rounded corners */
+            
+        }
+
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.8;
+            transition: transform 0.5s ease-out, opacity 0.5s ease-out, box-shadow 0.5s ease-out; /* Smooth transitions */
+        }
+
+        /* Particle Colors and Animations */
+        .particle.type-a {
+            background: radial-gradient(circle, #ff6b6b, #ff4747); /* Red gradient */
+            box-shadow: 0 0 20px 5px #ff4747; /* Red glow */
+            animation: pulseRed 2s infinite alternate;
+        }
+
+        .particle.type-b {
+            background: radial-gradient(circle, #4ecdc4, #1a535c); /* Teal gradient */
+            box-shadow: 0 0 20px 5px #4ecdc4; /* Teal glow */
+            animation: pulseTeal 3s infinite alternate;
+        }
+        
+        .particle.type-c {
+             background: radial-gradient(circle, #ffdb58, #d4af37);/* Yellow gradient*/
+             box-shadow: 0 0 20px 5px #ffdb58;
+            animation: pulseYellow 2.5s infinite alternate;
+        }
+
+
+        @keyframes pulseRed {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
+        @keyframes pulseTeal {
+            from { transform: scale(1); }
+            to { transform: scale(1.05); }
+        }
+        
+        @keyframes pulseYellow {
+            from { transform: scale(1); }
+            to { transform: scale(1.2); }
+        }
+        
+
+        /* UI Controls */
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent */
+            padding: 15px 25px;
+            border-radius: 30px;
+            box-shadow: 0 0 15px 5px rgba(0, 0, 0, 0.3);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            z-index: 10; /* Ensure controls are above the particles */
+        }
+
+        .control-group {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+
+        }
+
+        #controls label {
+            margin-right: 10px;
+            color: #fff; /* White for contrast */
+            font-size: 0.9rem;
+        }
+
+        #controls input[type="range"] {
+          appearance: none; /* Remove default styling */
+          width: 150px;
+          height: 8px; /* Thinner slider */
+          background: #ddd; /* Light gray track */
+          border-radius: 4px;
+          outline: none;
+          opacity: 0.7;
+          transition: opacity 0.2s;
+            margin-bottom: 5px;
+        }
+
+        #controls input[type="range"]:hover {
+          opacity: 1;
+        }
+
+        #controls input[type="range"]::-webkit-slider-thumb {
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #fdbb2d; /* Golden thumb */
+          cursor: pointer;
+          box-shadow: 0 0 5px rgba(0, 0, 0, 0.5); /* Subtle shadow */
+        }
+
+        #controls input[type="range"]::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: #fdbb2d;
+          cursor: pointer;
+          box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+
+        #controls button {
+            padding: 8px 16px;
+            background-color: #fdbb2d; /* Gold button */
+            color: #333;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        #controls button:hover {
+            background-color: #e0a800; /* Darker gold on hover */
+            transform: translateY(-2px); /* Slight lift on hover */
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #controls {
+                flex-direction: column;
+                padding: 10px;
+            }
+            #controls input[type="range"]{
+                width: 80vw;
+            }
+           
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <canvas id="simulationCanvas"></canvas>
+
+    <div id="controls">
+      <div class="control-group">
+        <label for="numParticles">Particles:</label>
+        <input type="range" id="numParticles" min="10" max="500" value="100">
+        <span id="numParticlesValue">100</span>
+      </div>
+
+      <div class="control-group">
+        <label for="speed">Speed:</label>
+        <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1">
+        <span id="speedValue">1</span>
+      </div>
+
+      <div class="control-group">
+          <label for="size">Size:</label>
+          <input type="range" id="size" min="2" max="25" step="1" value="5">
+          <span id="sizeValue">5</span>
+      </div>
+
+        <button id="resetButton">Reset</button>
+    </div>
+</div>
+
+
+<script>
+    const canvas = document.getElementById('simulationCanvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = window.innerWidth * 0.8;  // 80% of the viewport
+    canvas.height = window.innerHeight * 0.8;
+
+    let particles = [];
+    let numParticles = 100;
+    let speed = 1;
+    let particleSize = 5;
+
+    // UI elements
+    const numParticlesSlider = document.getElementById('numParticles');
+    const speedSlider = document.getElementById('speed');
+    const resetButton = document.getElementById('resetButton');
+    const sizeSlider = document.getElementById('size');
+    const numParticlesValue = document.getElementById('numParticlesValue');
+    const speedValue = document.getElementById('speedValue');
+    const sizeValue = document.getElementById('sizeValue');
+
+    class Particle {
+        constructor(x, y, size, type, speedX, speedY) {
+            this.x = x;
+            this.y = y;
+            this.size = size;
+            this.type = type; // 'a', 'b', or 'c'
+            this.speedX = speedX;
+            this.speedY = speedY;
+            this.element = document.createElement('div');
+            this.element.classList.add('particle', `type-${type}`);
+            this.element.style.width = `${size}px`;
+            this.element.style.height = `${size}px`;
+            this.updateElementPosition();
+            document.getElementById('container').appendChild(this.element);
+        }
+
+        updateElementPosition() {
+            this.element.style.left = `${this.x}px`;
+            this.element.style.top = `${this.y}px`;
+        }
+
+        update() {
+            this.x += this.speedX * speed;
+            this.y += this.speedY * speed;
+
+            // Bounce off the edges of the canvas
+            if (this.x + this.size > canvas.width || this.x < 0) {
+                this.speedX = -this.speedX;
+            }
+            if (this.y + this.size > canvas.height || this.y < 0) {
+                this.speedY = -this.speedY;
+            }
+
+            this.updateElementPosition();
+
+        }
+        
+        remove() {
+            if (this.element.parentNode) { // Check if element still exists.  Important for rapid reset.
+                this.element.parentNode.removeChild(this.element);
+            }
+        }
+    }
+
+    function createParticles() {
+        particles.forEach(p => p.remove()); //clean previous
+        particles = []; // Clear the existing array
+        for (let i = 0; i < numParticles; i++) {
+            const size = Math.random() * (particleSize -2) + 2;  //range of sizes
+            const x = Math.random() * (canvas.width - size);
+            const y = Math.random() * (canvas.height - size);
+            const type = ['a', 'b', 'c'][Math.floor(Math.random() * 3)]; // Randomly assign types
+            const speedX = (Math.random() - 0.5) * 2; // -1 to 1
+            const speedY = (Math.random() - 0.5) * 2;
+            particles.push(new Particle(x, y, size, type, speedX, speedY));
+        }
+    }
+
+    function update() {
+        //No need to clean a canvas
+        particles.forEach(particle => particle.update());
+        requestAnimationFrame(update);
+    }
+
+    function resetSimulation() {
+        createParticles();
+    }
+
+
+    // Event Listeners for UI
+    numParticlesSlider.addEventListener('input', () => {
+        numParticles = parseInt(numParticlesSlider.value);
+        numParticlesValue.textContent = numParticles;  //Display the value
+        createParticles();
+    });
+
+    speedSlider.addEventListener('input', () => {
+        speed = parseFloat(speedSlider.value);
+        speedValue.textContent = speed;
+    });
+    
+    sizeSlider.addEventListener('input', () => {
+        particleSize = parseInt(sizeSlider.value);
+        sizeValue.textContent = particleSize;
+        createParticles();  // Recreate to apply new size immediately
+    })
+
+    resetButton.addEventListener('click', resetSimulation);
+
+    // Initial setup
+    createParticles();
+    update();
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth * 0.8;
+        canvas.height = window.innerHeight * 0.8;
+        createParticles(); // Recreate particles to fit the new size
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,2024 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Celestial Constructor: Advanced Astrophysics Edition</title>
+<style>
+body {
+  font-family: sans-serif;
+  background-color: #111;
+  color: #eee;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  margin: 0;
+}
+
+#gameCanvas {
+  border: 2px solid #555;
+  background-color: #000;
+}
+
+#controls {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+button {
+  padding: 10px 15px;
+  font-size: 16px;
+  background-color: #444;
+  color: #eee;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+button:hover {
+  background-color: #666;
+}
+
+button:disabled {
+  background-color: #333;
+  color: #888;
+  cursor: not-allowed;
+}
+
+#message {
+  margin-top: 10px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #ffcc00;
+}
+
+#winMessage {
+  margin-top: 10px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #00ff00;
+  display: none;
+}
+
+#eventLog {
+  margin-top: 10px;
+  font-size: 16px;
+  color: #ff4d4d;
+  max-height: 80px;
+  overflow-y: auto;
+  width: 600px;
+  text-align: center;
+}
+
+#instructions {
+  margin-top: 20px;
+  max-width: 600px;
+  text-align: center;
+}
+
+#stats {
+  margin-top: 10px;
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  padding: 5px 10px;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 60px;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+}
+
+#performance-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #00ff00; /* Green by default */
+}
+
+.status-good {
+  background-color: #00ff00 !important; /* Green */
+}
+
+.status-warning {
+  background-color: #ffcc00 !important; /* Yellow */
+}
+
+.status-critical {
+  background-color: #ff3333 !important; /* Red */
+}
+
+/* Physics toggle switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
+  margin: 10px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #444;
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #2196F3;
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+.toggle-container {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.toggle-label {
+  margin-right: 10px;
+}
+</style>
+</head>
+<body>
+
+<h1>Celestial Constructor: Advanced Astrophysics Edition</h1>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<div id="controls">
+  <button id="addNebula">Add Nebula</button>
+  <button id="addRedDwarf">Add Red Dwarf</button>
+  <button id="addSunlike">Add Sun-like Star</button>
+  <button id="addBlueGiant">Add Blue Giant</button>
+  <button id="addSupernovae">Trigger Supernova</button>
+  <button id="reset">Reset Universe</button>
+</div>
+
+<div class="toggle-container">
+  <span class="toggle-label">Physics Simulation:</span>
+  <label class="switch">
+    <input type="checkbox" id="physicsToggle" checked>
+    <span class="slider"></span>
+  </label>
+</div>
+
+<div id="stats">
+  <div class="stat">
+    <span>Stars:</span>
+    <span id="starCount" class="stat-value">0</span>
+  </div>
+  <div class="stat">
+    <span>Planets:</span>
+    <span id="planetCount" class="stat-value">0</span>
+  </div>
+  <div class="stat">
+    <span>Black Holes:</span>
+    <span id="blackHoleCount" class="stat-value">0</span>
+  </div>
+  <div class="stat">
+    <span>Nebulae:</span>
+    <span id="nebulaCount" class="stat-value">0</span>
+  </div>
+  <div class="stat">
+    <span>Total Charge:</span>
+    <span id="totalCharge" class="stat-value">0</span>
+  </div>
+  <div class="stat">
+    <span>Objects:</span>
+    <span id="objectCount" class="stat-value">0</span>
+  </div>
+</div>
+
+<div id="performance-indicator" class="status-good"></div>
+
+<div id="message"></div>
+<div id="winMessage"></div>
+<div id="eventLog"></div>
+
+<div id="instructions">
+    <p>Welcome to the Advanced Astrophysics Edition! Create a stable universe with realistic stellar mechanics.</p>
+    <p><b>Nebulae:</b> Gas clouds that can collapse to form stars.</p>
+    <p><b>Stars:</b> Different types (Red Dwarf, Sun-like, Blue Giant) with unique lifecycles.</p>
+    <p><b>Planetary Formation:</b> Young stars form planets in their orbits.</p>
+    <p><b>Stellar Evolution:</b> Stars age, transform, and eventually die as supernovae, forming neutron stars or black holes.</p>
+    <p><b>Charge System:</b> Red Dwarfs (+1), Sun-like (+2), Blue Giants (+3), Planets (-1), Black Holes (-5), Nebulae (-2).</p>
+    <p><b>Win Condition:</b> Create a balanced system with total charge of 0 and at least 5 celestial objects.</p>
+</div>
+
+<script>
+// Canvas setup
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Controls
+const addNebulaBtn = document.getElementById('addNebula');
+const addRedDwarfBtn = document.getElementById('addRedDwarf');
+const addSunlikeBtn = document.getElementById('addSunlike');
+const addBlueGiantBtn = document.getElementById('addBlueGiant');
+const addSupernovaeBtn = document.getElementById('addSupernovae');
+const resetBtn = document.getElementById('reset');
+const physicsToggle = document.getElementById('physicsToggle');
+
+// Display elements
+const messageDiv = document.getElementById('message');
+const winMessageDiv = document.getElementById('winMessage');
+const eventLogDiv = document.getElementById('eventLog');
+const starCountDiv = document.getElementById('starCount');
+const planetCountDiv = document.getElementById('planetCount');
+const blackHoleCountDiv = document.getElementById('blackHoleCount');
+const nebulaCountDiv = document.getElementById('nebulaCount');
+const totalChargeDiv = document.getElementById('totalCharge');
+
+// Game state
+let celestialObjects = [];
+let totalCharge = 0;
+let physicsEnabled = true;
+let gameTime = 0;
+let nextId = 0;
+
+// Constants - with adjusted lifespans and balanced parameters 
+const STAR_TYPES = {
+  RED_DWARF: {
+    name: 'Red Dwarf',
+    color: '#ff6666',
+    baseRadius: 10,
+    mass: 0.3,
+    lifespan: 60000, // Shortened for better gameplay
+    temperature: 3500,
+    charge: 1,
+    canFormPlanets: true,
+    evolutionPath: 'WHITE_DWARF',
+    novaChance: 0.2 // 20% chance of nova events
+  },
+  SUN_LIKE: {
+    name: 'Sun-like Star',
+    color: '#ffdd66',
+    baseRadius: 15,
+    mass: 1.0,
+    lifespan: 40000,
+    temperature: 5700,
+    charge: 2,
+    canFormPlanets: true,
+    evolutionPath: 'RED_GIANT',
+    novaChance: 0.5
+  },
+  BLUE_GIANT: {
+    name: 'Blue Giant',
+    color: '#6688ff',
+    baseRadius: 25,
+    mass: 10.0,
+    lifespan: 20000,
+    temperature: 20000,
+    charge: 3,
+    canFormPlanets: true,
+    evolutionPath: 'SUPERNOVA',
+    novaChance: 0.8
+  },
+  RED_GIANT: {
+    name: 'Red Giant',
+    color: '#ff3333',
+    baseRadius: 35,
+    mass: 0.8,
+    lifespan: 10000,
+    temperature: 3000,
+    charge: 2,
+    canFormPlanets: false,
+    evolutionPath: 'PLANETARY_NEBULA',
+    novaChance: 0.6
+  },
+  WHITE_DWARF: {
+    name: 'White Dwarf',
+    color: '#ffffff',
+    baseRadius: 7,
+    mass: 0.6,
+    lifespan: 50000,
+    temperature: 10000,
+    charge: 1,
+    canFormPlanets: false,
+    evolutionPath: null,
+    novaChance: 0.3
+  }
+};
+
+const CELESTIAL_TYPES = {
+  NEBULA: {
+    name: 'Nebula',
+    color: ['#4477aa', '#aa66bb', '#44aaaa'],
+    baseRadius: 40,
+    mass: 20,
+    charge: -2,
+    particleCount: 30,
+    canFormStar: true,
+    collapseTime: 50000
+  },
+  PLANET: {
+    name: 'Planet',
+    color: ['#88aa44', '#aa8844', '#44aaaa'],
+    baseRadius: 5,
+    mass: 0.1,
+    charge: -1
+  },
+  BLACK_HOLE: {
+    name: 'Black Hole',
+    color: '#000000',
+    baseRadius: 12,
+    accretionDiskRadius: 30,
+    mass: 30,
+    charge: -5,
+    particleCount: 40
+  },
+  NEUTRON_STAR: {
+    name: 'Neutron Star',
+    color: '#bbffff',
+    baseRadius: 6,
+    mass: 3,
+    charge: -3,
+    lifespan: 100000
+  },
+  PLANETARY_NEBULA: {
+    name: 'Planetary Nebula',
+    color: ['#66aaff', '#aaddff'],
+    baseRadius: 45,
+    mass: 0.5,
+    charge: -2,
+    particleCount: 50,
+    dissipationTime: 20000
+  }
+};
+
+// Object Creation Functions
+function createStar(type, x, y) {
+  if (!STAR_TYPES[type]) {
+    console.error(`Invalid star type: ${type}`);
+    return null;
+  }
+  
+  const id = nextId++;
+  const starType = STAR_TYPES[type];
+  
+  // Ensure x and y are within canvas bounds
+  x = Math.max(starType.baseRadius * 2, Math.min(canvas.width - starType.baseRadius * 2, x));
+  y = Math.max(starType.baseRadius * 2, Math.min(canvas.height - starType.baseRadius * 2, y));
+  
+  const star = {
+    id,
+    type: 'STAR',
+    starType: type,
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+    radius: starType.baseRadius,
+    color: starType.color,
+    mass: starType.mass,
+    temperature: starType.temperature,
+    age: 0,
+    lifespan: starType.lifespan,
+    charge: starType.charge,
+    evolutionPath: starType.evolutionPath,
+    hasFormedPlanets: false,
+    canFormPlanets: starType.canFormPlanets,
+    planetFormationTime: 5000 + Math.random() * 5000,
+    planetCount: 0,
+    maxPlanets: Math.floor(2 + Math.random() * 3),
+    nova: false,
+    novaTimer: null,
+    planets: []
+  };
+
+  // Schedule nova events for stars
+  try {
+    scheduleNovaEvent(star);
+  } catch (error) {
+    console.error("Error scheduling nova event:", error);
+  }
+  
+  logEvent(`A new ${starType.name} has formed`);
+  
+  return star;
+}
+
+function createNebula(x, y) {
+  const id = nextId++;
+  const nebulaType = CELESTIAL_TYPES.NEBULA;
+  const colorIndex = Math.floor(Math.random() * nebulaType.color.length);
+  
+  const particles = [];
+  for (let i = 0; i < nebulaType.particleCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * nebulaType.baseRadius;
+    particles.push({
+      x: Math.cos(angle) * distance,
+      y: Math.sin(angle) * distance,
+      alpha: 0.2 + Math.random() * 0.5,
+      size: 1 + Math.random() * 3
+    });
+  }
+  
+  const nebula = {
+    id,
+    type: 'NEBULA',
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+    radius: nebulaType.baseRadius,
+    color: nebulaType.color[colorIndex],
+    mass: nebulaType.mass,
+    charge: nebulaType.charge,
+    particles,
+    age: 0,
+    collapseTime: nebulaType.collapseTime + Math.random() * 20000,
+    canFormStar: nebulaType.canFormStar,
+    dissipationTime: null
+  };
+  
+  logEvent("A new nebula has formed in space");
+  
+  return nebula;
+}
+
+function createPlanet(star, distance, angle) {
+  const id = nextId++;
+  const planetType = CELESTIAL_TYPES.PLANET;
+  const colorIndex = Math.floor(Math.random() * planetType.color.length);
+  
+  // Calculate position based on distance and angle from star
+  const x = star.x + Math.cos(angle) * distance;
+  const y = star.y + Math.sin(angle) * distance;
+  
+  // Calculate orbital velocity (perpendicular to radius)
+  const orbitalSpeed = Math.sqrt(0.1 * star.mass / distance);
+  const vx = -Math.sin(angle) * orbitalSpeed;
+  const vy = Math.cos(angle) * orbitalSpeed;
+  
+  const planet = {
+    id,
+    type: 'PLANET',
+    parentId: star.id,
+    x,
+    y,
+    vx,
+    vy,
+    radius: planetType.baseRadius * (0.7 + Math.random() * 0.6),
+    color: planetType.color[colorIndex],
+    mass: planetType.mass * (0.8 + Math.random() * 0.4),
+    charge: planetType.charge,
+    distance,
+    angle,
+    orbitalSpeed
+  };
+  
+  star.planets.push(planet);
+  star.planetCount++;
+  
+  logEvent(`A planet has formed around a ${STAR_TYPES[star.starType].name}`);
+  
+  return planet;
+}
+
+function createBlackHole(x, y, mass) {
+  const id = nextId++;
+  const blackHoleType = CELESTIAL_TYPES.BLACK_HOLE;
+  
+  const particles = [];
+  for (let i = 0; i < blackHoleType.particleCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = blackHoleType.baseRadius + Math.random() * (blackHoleType.accretionDiskRadius - blackHoleType.baseRadius);
+    particles.push({
+      x: Math.cos(angle) * distance,
+      y: Math.sin(angle) * distance,
+      angle,
+      distance,
+      speed: 0.05 + Math.random() * 0.05,
+      color: `hsl(${Math.random() * 60 + 220}, 100%, ${50 + Math.random() * 50}%)`
+    });
+  }
+  
+  const blackHole = {
+    id,
+    type: 'BLACK_HOLE',
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+    radius: blackHoleType.baseRadius,
+    accretionDiskRadius: blackHoleType.accretionDiskRadius,
+    color: blackHoleType.color,
+    mass: mass || blackHoleType.mass,
+    charge: blackHoleType.charge,
+    particles
+  };
+  
+  logEvent("A black hole has formed from a stellar collapse");
+  
+  return blackHole;
+}
+
+function createNeutronStar(x, y) {
+  const id = nextId++;
+  const neutronType = CELESTIAL_TYPES.NEUTRON_STAR;
+  
+  const neutronStar = {
+    id,
+    type: 'NEUTRON_STAR',
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+    radius: neutronType.baseRadius,
+    color: neutronType.color,
+    mass: neutronType.mass,
+    charge: neutronType.charge,
+    age: 0,
+    lifespan: neutronType.lifespan,
+    pulseState: 0
+  };
+  
+  logEvent("A neutron star has formed from a supernova");
+  
+  return neutronStar;
+}
+
+function createPlanetaryNebula(x, y) {
+  const id = nextId++;
+  const nebulaType = CELESTIAL_TYPES.PLANETARY_NEBULA;
+  const colorIndex = Math.floor(Math.random() * nebulaType.color.length);
+  
+  const particles = [];
+  for (let i = 0; i < nebulaType.particleCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * nebulaType.baseRadius;
+    particles.push({
+      x: Math.cos(angle) * distance,
+      y: Math.sin(angle) * distance,
+      vx: Math.cos(angle) * 0.2,
+      vy: Math.sin(angle) * 0.2,
+      alpha: 0.2 + Math.random() * 0.5,
+      size: 1 + Math.random() * 3
+    });
+  }
+  
+  const planetaryNebula = {
+    id,
+    type: 'PLANETARY_NEBULA',
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+    radius: nebulaType.baseRadius,
+    color: nebulaType.color[colorIndex],
+    mass: nebulaType.mass,
+    charge: nebulaType.charge,
+    particles,
+    age: 0,
+    dissipationTime: nebulaType.dissipationTime + Math.random() * 10000
+  };
+  
+  logEvent("A planetary nebula has formed from a dying star");
+  
+  return planetaryNebula;
+}
+
+// Interaction and Evolution Functions
+function scheduleNovaEvent(star) {
+  // Validation checks
+  if (!star) return;
+  if (star.type !== 'STAR') return;
+  
+  // Clear any existing timer
+  if (star.novaTimer) {
+    try {
+      clearTimeout(star.novaTimer);
+      star.novaTimer = null;
+    } catch (error) {
+      console.error("Error clearing timer:", error);
+    }
+  }
+  
+  // Schedule next nova with smaller delay to reduce memory pressure
+  const novaDelay = 15000 + Math.random() * 15000;  // Between 15-30 seconds
+  try {
+    star.novaTimer = setTimeout(() => {
+      // Check if star still exists in celestial objects before starting nova
+      if (celestialObjects.some(obj => obj.id === star.id)) {
+        startNova(star);
+      }
+    }, novaDelay);
+  } catch (error) {
+    console.error("Error creating nova timer:", error);
+    star.novaTimer = null;
+  }
+}
+
+function startNova(star) {
+  // Multiple safety checks
+  if (!star) return;
+  if (!celestialObjects.some(obj => obj.id === star.id)) return;
+  if (star.nova) return; // Already in nova state
+  
+  try {
+    star.nova = true;
+    star.originalRadius = star.radius;
+    
+    // Use fewer animation frames - more efficient
+    const growthDuration = 1500;
+    const growthStart = Date.now();
+    const maxGrowth = star.radius * 1.8; // Slightly smaller growth to prevent collision issues
+    
+    let growthAnimationId = null;
+    let shrinkAnimationId = null;
+    
+    function growStar() {
+      // Safety check before each frame
+      if (!celestialObjects.some(obj => obj.id === star.id)) {
+        if (growthAnimationId) cancelAnimationFrame(growthAnimationId);
+        return;
+      }
+      
+      const elapsed = Date.now() - growthStart;
+      const progress = Math.min(elapsed / growthDuration, 1);
+      
+      star.radius = star.originalRadius + (maxGrowth - star.originalRadius) * progress;
+      
+      if (progress < 1) {
+        growthAnimationId = requestAnimationFrame(growStar);
+      } else {
+        // Start shrinking
+        shrinkStar();
+      }
+    }
+    
+    function shrinkStar() {
+      // Safety check
+      if (!celestialObjects.some(obj => obj.id === star.id)) {
+        if (shrinkAnimationId) cancelAnimationFrame(shrinkAnimationId);
+        return;
+      }
+      
+      const shrinkDuration = 800;
+      const shrinkStart = Date.now();
+      
+      function doShrink() {
+        // Safety check in each frame
+        if (!celestialObjects.some(obj => obj.id === star.id)) {
+          if (shrinkAnimationId) cancelAnimationFrame(shrinkAnimationId);
+          return;
+        }
+        
+        const elapsed = Date.now() - shrinkStart;
+        const progress = Math.min(elapsed / shrinkDuration, 1);
+        
+        star.radius = maxGrowth - (maxGrowth - star.originalRadius) * progress;
+        
+        if (progress < 1) {
+          shrinkAnimationId = requestAnimationFrame(doShrink);
+        } else {
+          // Nova complete
+          star.radius = star.originalRadius;
+          star.nova = false;
+          
+          // Schedule next nova (only if star still exists)
+          if (celestialObjects.some(obj => obj.id === star.id)) {
+            scheduleNovaEvent(star);
+          }
+        }
+      }
+      
+      shrinkAnimationId = requestAnimationFrame(doShrink);
+    }
+    
+    growthAnimationId = requestAnimationFrame(growStar);
+    
+    // Add timeout safety to ensure nova always completes
+    setTimeout(() => {
+      if (star && celestialObjects.some(obj => obj.id === star.id)) {
+        star.radius = star.originalRadius;
+        star.nova = false;
+      }
+    }, growthDuration + 2000); // Duration plus buffer
+    
+    logEvent(`${STAR_TYPES[star.starType].name} is experiencing a nova event`);
+  } catch (error) {
+    console.error("Error in nova effect:", error);
+    // Reset star to safe state
+    if (star && celestialObjects.some(obj => obj.id === star.id)) {
+      star.radius = STAR_TYPES[star.starType].baseRadius;
+      star.nova = false;
+    }
+  }
+}
+
+function triggerSupernova(star) {
+  if (!star || star.type !== 'STAR') return;
+  
+  logEvent(`${STAR_TYPES[star.starType].name} has gone supernova!`);
+  
+  // Create explosion effect
+  const explosionParticles = [];
+  const particleCount = 100;
+  
+  for (let i = 0; i < particleCount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 3;
+    explosionParticles.push({
+      x: star.x,
+      y: star.y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: 1 + Math.random() * 3,
+      color: `hsl(${Math.random() * 60}, 100%, ${70 + Math.random() * 30}%)`,
+      life: 100 + Math.random() * 100
+    });
+  }
+  
+  // Animate explosion
+  function animateExplosion() {
+    ctx.globalCompositeOperation = 'lighter';
+    
+    for (let i = explosionParticles.length - 1; i >= 0; i--) {
+      const p = explosionParticles[i];
+      
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life--;
+      
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.life / 100;
+      ctx.fill();
+      
+      if (p.life <= 0) {
+        explosionParticles.splice(i, 1);
+      }
+    }
+    
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    
+    if (explosionParticles.length > 0) {
+      requestAnimationFrame(animateExplosion);
+    }
+  }
+  
+  requestAnimationFrame(animateExplosion);
+  
+  // Determine outcome based on star mass
+  const { x, y, mass } = star;
+  
+  // Remove the star from celestial objects
+  removeCelestialObject(star);
+  
+  // Create appropriate remnant
+  if (mass > 8) {
+    // Create black hole
+    const blackHole = createBlackHole(x, y, mass * 0.8);
+    celestialObjects.push(blackHole);
+  } else if (mass > 1.4) {
+    // Create neutron star
+    const neutronStar = createNeutronStar(x, y);
+    celestialObjects.push(neutronStar);
+  } else {
+    // Create planetary nebula
+    const nebula = createPlanetaryNebula(x, y);
+    celestialObjects.push(nebula);
+  }
+  
+  updateCharge();
+}
+
+function evolveStar(star) {
+  if (!star || star.type !== 'STAR' || !star.evolutionPath) return;
+  
+  const { x, y } = star;
+  const evolutionType = star.evolutionPath;
+  
+  logEvent(`${STAR_TYPES[star.starType].name} is evolving to ${evolutionType.toLowerCase().replace('_', ' ')}`);
+  
+  // Remove old star
+  removeCelestialObject(star);
+  
+  // Create evolved object based on evolution path
+  switch (evolutionType) {
+    case 'RED_GIANT':
+      const redGiant = createStar('RED_GIANT', x, y);
+      celestialObjects.push(redGiant);
+      break;
+    case 'WHITE_DWARF':
+      const whiteDwarf = createStar('WHITE_DWARF', x, y);
+      celestialObjects.push(whiteDwarf);
+      break;
+    case 'SUPERNOVA':
+      triggerSupernova(star);
+      break;
+    case 'PLANETARY_NEBULA':
+      const nebula = createPlanetaryNebula(x, y);
+      celestialObjects.push(nebula);
+      break;
+  }
+  
+  updateCharge();
+}
+
+function collapseNebula(nebula) {
+  if (!nebula || nebula.type !== 'NEBULA') return;
+  
+  const { x, y } = nebula;
+  
+  // Remove nebula
+  removeCelestialObject(nebula);
+  
+  // Determine star type to create (weighted random)
+  const rand = Math.random();
+  let starType;
+  
+  if (rand < 0.7) {
+    starType = 'RED_DWARF';  // Most common
+  } else if (rand < 0.95) {
+    starType = 'SUN_LIKE';   // Less common
+  } else {
+    starType = 'BLUE_GIANT'; // Rare
+  }
+  
+  // Create new star
+  const star = createStar(starType, x, y);
+  celestialObjects.push(star);
+  
+  logEvent(`A nebula has collapsed, forming a ${STAR_TYPES[starType].name}`);
+  
+  updateCharge();
+}
+
+function formPlanets(star) {
+  if (!star || star.type !== 'STAR' || !star.canFormPlanets || star.hasFormedPlanets) return;
+  
+  star.hasFormedPlanets = true;
+  
+  // Determine number of planets
+  const numPlanets = star.maxPlanets;
+  
+  // Create planets
+  for (let i = 0; i < numPlanets; i++) {
+    const distance = star.radius * 3 + i * star.radius * 2.5 + Math.random() * star.radius;
+    const angle = Math.random() * Math.PI * 2;
+    
+    const planet = createPlanet(star, distance, angle);
+    celestialObjects.push(planet);
+  }
+  
+  updateCharge();
+}
+
+// Physics and Rendering Functions
+function update() {
+  gameTime++;
+  
+  try {
+    // Enforce maximum object count to prevent performance issues
+    const MAX_OBJECTS = 50;
+    if (celestialObjects.length > MAX_OBJECTS) {
+      // Remove oldest nebulae or planets first
+      const objectsToRemove = celestialObjects
+        .filter(obj => obj.type === 'NEBULA' || obj.type === 'PLANET')
+        .sort((a, b) => (a.age || 0) - (b.age || 0))
+        .slice(0, celestialObjects.length - MAX_OBJECTS);
+      
+      if (objectsToRemove.length > 0) {
+        objectsToRemove.forEach(obj => removeCelestialObject(obj));
+      } else {
+        // If no nebulae or planets, remove oldest objects
+        const oldest = [...celestialObjects]
+          .sort((a, b) => (a.age || 0) - (b.age || 0))
+          .slice(0, celestialObjects.length - MAX_OBJECTS);
+        
+        oldest.forEach(obj => removeCelestialObject(obj));
+      }
+    }
+    
+    // Clean up invalid objects
+    for (let i = celestialObjects.length - 1; i >= 0; i--) {
+      const obj = celestialObjects[i];
+      if (!obj || !obj.type || !obj.id) {
+        celestialObjects.splice(i, 1);
+        continue;
+      }
+      
+      // Keep objects within bounds to prevent errors
+      const safeRadius = obj.radius || 10;
+      obj.x = Math.max(safeRadius, Math.min(canvas.width - safeRadius, obj.x));
+      obj.y = Math.max(safeRadius, Math.min(canvas.height - safeRadius, obj.y));
+    }
+    
+    // Update all objects
+    for (let i = celestialObjects.length - 1; i >= 0; i--) {
+      const obj = celestialObjects[i];
+      if (!obj) continue;
+      
+      // Handle motion if physics is enabled
+      if (physicsEnabled && obj.type !== 'PLANET') {
+        // Apply velocity with limits to prevent extreme speeds
+        const maxSpeed = 3.0;
+        obj.vx = Math.max(-maxSpeed, Math.min(maxSpeed, obj.vx));
+        obj.vy = Math.max(-maxSpeed, Math.min(maxSpeed, obj.vy));
+        
+        obj.x += obj.vx;
+        obj.y += obj.vy;
+        
+        // Keep objects within canvas
+        const safeRadius = obj.radius || 10;
+        if (obj.x < safeRadius) {
+          obj.x = safeRadius;
+          obj.vx *= -0.8;
+        } else if (obj.x > canvas.width - safeRadius) {
+          obj.x = canvas.width - safeRadius;
+          obj.vx *= -0.8;
+        }
+        
+        if (obj.y < safeRadius) {
+          obj.y = safeRadius;
+          obj.vy *= -0.8;
+        } else if (obj.y > canvas.height - safeRadius) {
+          obj.y = canvas.height - safeRadius;
+          obj.vy *= -0.8;
+        }
+        
+        // Apply minimal friction
+        obj.vx *= 0.998;
+        obj.vy *= 0.998;
+      }
+      
+      // Update planets with safety checks
+      if (obj.type === 'PLANET') {
+        // Find parent star
+        const parent = celestialObjects.find(o => o && o.id === obj.parentId);
+        
+        if (parent) {
+          if (physicsEnabled) {
+            // Update orbital position
+            obj.angle = (obj.angle + obj.orbitalSpeed * 0.02) % (Math.PI * 2);
+            obj.x = parent.x + Math.cos(obj.angle) * obj.distance;
+            obj.y = parent.y + Math.sin(obj.angle) * obj.distance;
+          }
+        } else {
+          // Orphaned planet becomes independent
+          obj.type = 'ASTEROID';
+          obj.charge = 0;
+          obj.vx = (Math.random() - 0.5) * 0.5;
+          obj.vy = (Math.random() - 0.5) * 0.5;
+        }
+      }
+      
+      // Star aging and evolution with safety checks
+      if (obj.type === 'STAR') {
+        obj.age++;
+        
+        // Planetary formation
+        if (obj.canFormPlanets && !obj.hasFormedPlanets && 
+            obj.age > obj.planetFormationTime && 
+            celestialObjects.length < MAX_OBJECTS - 3) {
+          formPlanets(obj);
+        }
+        
+        // Evolution check
+        if (obj.age > obj.lifespan && obj.evolutionPath) {
+          evolveStar(obj);
+        }
+      }
+      
+      // Black hole effects - optimized
+      if (obj.type === 'BLACK_HOLE') {
+        // Update accretion disk particles
+        if (obj.particles && Array.isArray(obj.particles)) {
+          // Limit particle updates to improve performance
+          const particleUpdateInterval = 2;
+          if (gameTime % particleUpdateInterval === 0) {
+            for (let j = 0; j < obj.particles.length; j++) {
+              const p = obj.particles[j];
+              p.angle = (p.angle + p.speed) % (Math.PI * 2);
+              p.x = Math.cos(p.angle) * p.distance;
+              p.y = Math.sin(p.angle) * p.distance;
+            }
+          }
+        }
+        
+        // Gravitational pull - only process nearby objects and not every frame
+        if (physicsEnabled && gameTime % 2 === 0) {
+          // Find objects within range
+          const nearbyObjects = celestialObjects.filter(other => {
+            if (!other || other.id === obj.id || other.type === 'BLACK_HOLE') return false;
+            
+            const dx = obj.x - other.x;
+            const dy = obj.y - other.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            return distance < 180; // Reduced range for performance
+          });
+          
+          // Process gravity for nearby objects
+          for (const other of nearbyObjects) {
+            const dx = obj.x - other.x;
+            const dy = obj.y - other.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Stronger but less frequent force application
+            const force = obj.mass * 0.0002 / (distance * distance);
+            const angle = Math.atan2(dy, dx);
+            
+            other.vx += Math.cos(angle) * force;
+            other.vy += Math.sin(angle) * force;
+            
+            // Consume if very close
+            if (distance < obj.radius * 1.3) {
+              logEvent(`A ${other.type.toLowerCase()} was consumed by a black hole`);
+              obj.mass += other.mass * 0.1;
+              removeCelestialObject(other);
+            }
+          }
+        }
+      }
+      
+      // Nebula physics - optimization
+      if (obj.type === 'NEBULA') {
+        // Update particles less frequently
+        if (gameTime % 3 === 0 && obj.particles && Array.isArray(obj.particles)) {
+          // Update a subset of particles each frame
+          const particlesToUpdate = Math.min(obj.particles.length, 10);
+          for (let j = 0; j < particlesToUpdate; j++) {
+            const idx = Math.floor(Math.random() * obj.particles.length);
+            const p = obj.particles[idx];
+            if (p) {
+              p.x += (Math.random() - 0.5) * 0.2;
+              p.y += (Math.random() - 0.5) * 0.2;
+              p.alpha = Math.max(0.1, Math.min(0.7, p.alpha + (Math.random() - 0.5) * 0.05));
+            }
+          }
+        }
+        
+        // Age and lifecycle
+        obj.age++;
+        if (obj.canFormStar && obj.age > obj.collapseTime) {
+          collapseNebula(obj);
+        }
+        
+        // Nebula dissipation
+        if (obj.dissipationTime && obj.age > obj.dissipationTime) {
+          logEvent("A nebula has dissipated into space");
+          removeCelestialObject(obj);
+        }
+      }
+      
+      // Neutron star physics
+      if (obj.type === 'NEUTRON_STAR') {
+        obj.age++;
+        // Slower pulse rate for optimization
+        obj.pulseState = (obj.pulseState + 0.03) % (Math.PI * 2);
+        
+        if (obj.age > obj.lifespan) {
+          logEvent("A neutron star has cooled and faded away");
+          removeCelestialObject(obj);
+        }
+      }
+      
+      // Planetary nebula physics
+      if (obj.type === 'PLANETARY_NEBULA' && obj.particles && Array.isArray(obj.particles)) {
+        // Update particles less frequently
+        if (gameTime % 3 === 0) {
+          // Update a subset of particles each frame
+          const particlesToUpdate = Math.min(obj.particles.length, 15);
+          for (let j = 0; j < particlesToUpdate; j++) {
+            const idx = Math.floor(Math.random() * obj.particles.length);
+            const p = obj.particles[idx];
+            if (p) {
+              p.x += p.vx;
+              p.y += p.vy;
+              
+              // Simpler outward expansion
+              const distSq = p.x * p.x + p.y * p.y;
+              if (distSq > 0) {
+                const dist = Math.sqrt(distSq);
+                p.vx += p.x / dist * 0.01;
+                p.vy += p.y / dist * 0.01;
+              }
+              
+              p.alpha *= 0.997;
+            }
+          }
+        }
+        
+        obj.age++;
+        if (obj.age > obj.dissipationTime) {
+          // Convert to normal nebula only if below object limit
+          if (celestialObjects.length < MAX_OBJECTS) {
+            const nebula = createNebula(obj.x, obj.y);
+            if (nebula) celestialObjects.push(nebula);
+          }
+          removeCelestialObject(obj);
+        }
+      }
+    }
+    
+    // Check for collisions less frequently
+    if (gameTime % 3 === 0) {
+      checkCollisions();
+    }
+    
+    // Update stats and win condition
+    updateStats();
+    checkWin();
+    
+  } catch (error) {
+    console.error("Error in update function:", error);
+    // Continue game loop even if there's an error
+  }
+}
+
+function render() {
+  try {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw background stars
+    drawBackgroundStars();
+    
+    // Sort objects by type for better rendering order
+    // This ensures planets are drawn on top of their stars, etc.
+    const sortedObjects = [...celestialObjects].sort((a, b) => {
+      const renderOrder = {
+        'NEBULA': 1,
+        'PLANETARY_NEBULA': 2,
+        'BLACK_HOLE': 3,
+        'STAR': 4, 
+        'NEUTRON_STAR': 5,
+        'PLANET': 6,
+        'ASTEROID': 7
+      };
+      
+      return (renderOrder[a.type] || 99) - (renderOrder[b.type] || 99);
+    });
+    
+    // Draw all objects with error handling
+    for (let i = 0; i < sortedObjects.length; i++) {
+      const obj = sortedObjects[i];
+      if (!obj || !obj.type) continue;
+      
+      try {
+        switch (obj.type) {
+          case 'STAR':
+            drawStar(obj);
+            break;
+          case 'NEBULA':
+            drawNebula(obj);
+            break;
+          case 'PLANET':
+            drawPlanet(obj);
+            break;
+          case 'BLACK_HOLE':
+            drawBlackHole(obj);
+            break;
+          case 'NEUTRON_STAR':
+            drawNeutronStar(obj);
+            break;
+          case 'PLANETARY_NEBULA':
+            drawPlanetaryNebula(obj);
+            break;
+          case 'ASTEROID':
+            // Render asteroids (former planets) as small gray objects
+            ctx.beginPath();
+            ctx.arc(obj.x, obj.y, obj.radius * 0.8, 0, Math.PI * 2);
+            ctx.fillStyle = '#aaaaaa';
+            ctx.fill();
+            break;
+        }
+      } catch (objError) {
+        console.error(`Error rendering ${obj.type}:`, objError);
+      }
+    }
+    
+    // Debug information when things break
+    if (window.debugMode) {
+      ctx.fillStyle = 'white';
+      ctx.font = '12px monospace';
+      ctx.fillText(`Objects: ${celestialObjects.length}`, 10, 20);
+      ctx.fillText(`Frame: ${gameTime}`, 10, 40);
+    }
+    
+  } catch (error) {
+    console.error("Error in render function:", error);
+    // If rendering fails completely, at least clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'white';
+    ctx.font = '16px sans-serif';
+    ctx.fillText("Rendering error - resetting", canvas.width/2 - 80, canvas.height/2);
+    
+    // Auto-reset after persistent rendering failures
+    if (window.renderErrorCount === undefined) window.renderErrorCount = 0;
+    window.renderErrorCount++;
+    
+    if (window.renderErrorCount > 10) {
+      window.renderErrorCount = 0;
+      resetGame();
+    }
+  }
+}
+
+function drawStar(star) {
+  const starType = STAR_TYPES[star.starType];
+  
+  // Draw glow
+  const gradient = ctx.createRadialGradient(
+    star.x, star.y, star.radius * 0.5,
+    star.x, star.y, star.radius * 2
+  );
+  gradient.addColorStop(0, star.color);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  
+  ctx.beginPath();
+  ctx.arc(star.x, star.y, star.radius * 2, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  
+  // Draw star body
+  ctx.beginPath();
+  ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+  ctx.fillStyle = star.color;
+  ctx.fill();
+  
+  // Draw orbit lines for planets
+  if (star.planets.length > 0) {
+    ctx.beginPath();
+    for (const planet of star.planets) {
+      ctx.moveTo(star.x + planet.distance, star.y);
+      ctx.arc(star.x, star.y, planet.distance, 0, Math.PI * 2);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.stroke();
+  }
+}
+
+function drawNebula(nebula) {
+  ctx.globalAlpha = 0.7;
+  
+  // Draw base glow
+  const gradient = ctx.createRadialGradient(
+    nebula.x, nebula.y, 0,
+    nebula.x, nebula.y, nebula.radius
+  );
+  gradient.addColorStop(0, nebula.color);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  
+  ctx.beginPath();
+  ctx.arc(nebula.x, nebula.y, nebula.radius, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  
+  // Draw particles
+  for (const p of nebula.particles) {
+    ctx.beginPath();
+    ctx.arc(nebula.x + p.x, nebula.y + p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${p.alpha})`;
+    ctx.fill();
+  }
+  
+  ctx.globalAlpha = 1;
+}
+
+function drawPlanet(planet) {
+  ctx.beginPath();
+  ctx.arc(planet.x, planet.y, planet.radius, 0, Math.PI * 2);
+  ctx.fillStyle = planet.color;
+  ctx.fill();
+}
+
+function drawBlackHole(blackHole) {
+  // Draw accretion disk
+  for (const p of blackHole.particles) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 1 + Math.random(), 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  }
+  
+  // Draw event horizon
+  ctx.beginPath();
+  ctx.arc(blackHole.x, blackHole.y, blackHole.radius, 0, Math.PI * 2);
+  ctx.fillStyle = 'black';
+  ctx.fill();
+  
+  // Draw gravitational lensing effect
+  const gradient = ctx.createRadialGradient(
+    blackHole.x, blackHole.y, blackHole.radius,
+    blackHole.x, blackHole.y, blackHole.radius * 1.5
+  );
+  gradient.addColorStop(0, 'rgba(0,0,0,0.7)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  
+  ctx.beginPath();
+  ctx.arc(blackHole.x, blackHole.y, blackHole.radius * 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+}
+
+function drawNeutronStar(neutronStar) {
+  // Pulsing effect
+  const pulseSize = Math.sin(neutronStar.pulseState) * 0.2 + 1;
+  
+  // Draw glow
+  const gradient = ctx.createRadialGradient(
+    neutronStar.x, neutronStar.y, neutronStar.radius * 0.5,
+    neutronStar.x, neutronStar.y, neutronStar.radius * 3 * pulseSize
+  );
+  gradient.addColorStop(0, neutronStar.color);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  
+  ctx.beginPath();
+  ctx.arc(neutronStar.x, neutronStar.y, neutronStar.radius * 3 * pulseSize, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  
+  // Draw star body
+  ctx.beginPath();
+  ctx.arc(neutronStar.x, neutronStar.y, neutronStar.radius, 0, Math.PI * 2);
+  ctx.fillStyle = neutronStar.color;
+  ctx.fill();
+}
+
+function drawPlanetaryNebula(nebula) {
+  ctx.globalAlpha = 0.7;
+  
+  // Draw expanding shell
+  const gradient = ctx.createRadialGradient(
+    nebula.x, nebula.y, nebula.radius * 0.7,
+    nebula.x, nebula.y, nebula.radius
+  );
+  gradient.addColorStop(0, 'rgba(0,0,0,0)');
+  gradient.addColorStop(0.5, nebula.color);
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  
+  ctx.beginPath();
+  ctx.arc(nebula.x, nebula.y, nebula.radius, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  
+  // Draw particles
+  for (const p of nebula.particles) {
+    ctx.beginPath();
+    ctx.arc(nebula.x + p.x, nebula.y + p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${p.alpha})`;
+    ctx.fill();
+  }
+  
+  ctx.globalAlpha = 1;
+}
+
+function drawBackgroundStars() {
+  // Create static background stars if they don't exist
+  if (!window.backgroundStars) {
+    window.backgroundStars = [];
+    for (let i = 0; i < 200; i++) {
+      window.backgroundStars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        radius: Math.random() * 0.8 + 0.2,
+        alpha: Math.random() * 0.8 + 0.2
+      });
+    }
+  }
+  
+  // Draw background stars
+  for (const star of window.backgroundStars) {
+    ctx.beginPath();
+    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${star.alpha})`;
+    ctx.fill();
+  }
+}
+
+// Utility Functions
+function logEvent(message) {
+  const logEntry = document.createElement('div');
+  logEntry.textContent = message;
+  eventLogDiv.prepend(logEntry);
+  
+  // Limit log to last 5 entries
+  while (eventLogDiv.children.length > 5) {
+    eventLogDiv.removeChild(eventLogDiv.lastChild);
+  }
+}
+
+function updateCharge() {
+  totalCharge = celestialObjects.reduce((sum, obj) => sum + obj.charge, 0);
+  totalChargeDiv.textContent = totalCharge;
+}
+
+// Performance monitoring
+let lastFrameTime = 0;
+let frameTimeHistory = [];
+const MAX_FRAME_HISTORY = 30;
+
+function updateStats() {
+  try {
+    // Count object types
+    const counts = celestialObjects.reduce((acc, obj) => {
+      if (!obj || !obj.type) return acc;
+      acc[obj.type] = (acc[obj.type] || 0) + 1;
+      return acc;
+    }, {});
+    
+    // Update UI elements
+    starCountDiv.textContent = counts['STAR'] || 0;
+    planetCountDiv.textContent = counts['PLANET'] || 0;
+    blackHoleCountDiv.textContent = counts['BLACK_HOLE'] || 0;
+    nebulaCountDiv.textContent = (counts['NEBULA'] || 0) + (counts['PLANETARY_NEBULA'] || 0);
+    
+    // Total object count
+    const totalObjects = celestialObjects.length;
+    document.getElementById('objectCount').textContent = totalObjects;
+    
+    // Performance monitoring
+    const now = performance.now();
+    const frameTime = now - lastFrameTime;
+    lastFrameTime = now;
+    
+    // Only track meaningful frames
+    if (frameTime > 0 && frameTime < 1000) {
+      frameTimeHistory.push(frameTime);
+      if (frameTimeHistory.length > MAX_FRAME_HISTORY) {
+        frameTimeHistory.shift();
+      }
+    }
+    
+    // Calculate average frame time
+    const avgFrameTime = frameTimeHistory.reduce((sum, time) => sum + time, 0) / 
+                        (frameTimeHistory.length || 1);
+    
+    // Update performance indicator
+    const indicator = document.getElementById('performance-indicator');
+    
+    if (avgFrameTime < 30) {
+      indicator.className = 'status-good';
+    } else if (avgFrameTime < 50) {
+      indicator.className = 'status-warning';
+    } else {
+      indicator.className = 'status-critical';
+      
+      // Auto-optimization when performance is critical
+      if (avgFrameTime > 60 && celestialObjects.length > 20) {
+        // Remove some non-essential objects to improve performance
+        const nebulae = celestialObjects.filter(obj => 
+          obj && (obj.type === 'NEBULA' || obj.type === 'PLANETARY_NEBULA'));
+        
+        if (nebulae.length > 0) {
+          // Remove oldest nebula
+          const oldest = nebulae.sort((a, b) => (a.age || 0) - (b.age || 0))[0];
+          if (oldest) {
+            removeCelestialObject(oldest);
+            logEvent("Universe stabilizing: Nebula collapsed due to computational limits");
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error updating stats:", error);
+  }
+}
+
+function checkCollisions() {
+  // Create a temporary array of collision pairs to avoid modification during iteration
+  const collisionPairs = [];
+  
+  try {
+    // Check for collisions and build the pairs array
+    for (let i = 0; i < celestialObjects.length; i++) {
+      const obj1 = celestialObjects[i];
+      if (!obj1) continue; // Skip if undefined
+      
+      for (let j = i + 1; j < celestialObjects.length; j++) {
+        const obj2 = celestialObjects[j];
+        if (!obj2) continue; // Skip if undefined
+        
+        // Skip parent-planet collisions
+        if (obj1.type === 'PLANET' && obj1.parentId === obj2.id) continue;
+        if (obj2.type === 'PLANET' && obj2.parentId === obj1.id) continue;
+        
+        const dx = obj1.x - obj2.x;
+        const dy = obj1.y - obj2.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Add collision threshold to prevent objects getting too close
+        const collisionThreshold = (obj1.radius + obj2.radius) * 0.95; 
+        
+        if (distance < collisionThreshold) {
+          collisionPairs.push([obj1, obj2]);
+        }
+      }
+    }
+    
+    // Now handle all collisions from the pairs array
+    collisionPairs.forEach(pair => {
+      // Check if both objects still exist in the celestialObjects array
+      const obj1Exists = celestialObjects.some(obj => obj.id === pair[0].id);
+      const obj2Exists = celestialObjects.some(obj => obj.id === pair[1].id);
+      
+      if (obj1Exists && obj2Exists) {
+        handleCollision(pair[0], pair[1]);
+      }
+    });
+    
+  } catch (error) {
+    console.error("Error in collision detection:", error);
+  }
+}
+
+function handleCollision(obj1, obj2) {
+  if (!obj1 || !obj2) return;
+  
+  try {
+    const type1 = obj1.type;
+    const type2 = obj2.type;
+    
+    logEvent(`Collision between ${type1.toLowerCase()} and ${type2.toLowerCase()}`);
+    
+    // Implement elastic bounce for lightweight collisions to reduce object destruction
+    if ((type1 === 'PLANET' && type2 === 'PLANET') || 
+        (type1 === 'NEUTRON_STAR' && type2 === 'NEUTRON_STAR')) {
+      // Calculate new velocities - simplified elastic collision
+      const mass1 = obj1.mass || 1;
+      const mass2 = obj2.mass || 1;
+      const totalMass = mass1 + mass2;
+      
+      // Calculate vector between centers
+      const dx = obj2.x - obj1.x;
+      const dy = obj2.y - obj1.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // Normalize the collision vector
+      const nx = dx / distance;
+      const ny = dy / distance;
+      
+      // Apply impulse and move objects apart slightly
+      const impulse = 0.8; // Reduced impulse for stability
+      
+      // Update velocities
+      obj1.vx -= (impulse * mass2 / totalMass) * nx;
+      obj1.vy -= (impulse * mass2 / totalMass) * ny;
+      obj2.vx += (impulse * mass1 / totalMass) * nx;
+      obj2.vy += (impulse * mass1 / totalMass) * ny;
+      
+      // Separate objects to prevent continuous collisions
+      const overlap = (obj1.radius + obj2.radius) - distance;
+      if (overlap > 0) {
+        obj1.x -= (overlap/2) * nx;
+        obj1.y -= (overlap/2) * ny;
+        obj2.x += (overlap/2) * nx;
+        obj2.y += (overlap/2) * ny;
+      }
+      
+      return;
+    }
+    
+    // Black holes consume everything
+    if (type1 === 'BLACK_HOLE') {
+      removeCelestialObject(obj2);
+      obj1.mass += obj2.mass * 0.1;
+      return;
+    }
+    
+    if (type2 === 'BLACK_HOLE') {
+      removeCelestialObject(obj1);
+      obj2.mass += obj1.mass * 0.1;
+      return;
+    }
+    
+    // Star + Star collision
+    if (type1 === 'STAR' && type2 === 'STAR') {
+      const x = (obj1.x + obj2.x) / 2;
+      const y = (obj1.y + obj2.y) / 2;
+      
+      // Store masses before removal
+      const mass1 = obj1.mass;
+      const mass2 = obj2.mass;
+      const totalMass = mass1 + mass2;
+      
+      // Remove objects safely
+      removeCelestialObject(obj1);
+      removeCelestialObject(obj2);
+      
+      // Create appropriate outcome based on mass
+      if (totalMass > 8) {
+        const blackHole = createBlackHole(x, y, totalMass * 0.8);
+        if (blackHole) celestialObjects.push(blackHole);
+      } else {
+        const nebula = createNebula(x, y);
+        if (nebula) celestialObjects.push(nebula);
+      }
+    }
+    
+    // Star + Nebula collision
+    else if ((type1 === 'STAR' && type2 === 'NEBULA') || 
+        (type1 === 'NEBULA' && type2 === 'STAR')) {
+      const star = type1 === 'STAR' ? obj1 : obj2;
+      const nebula = type1 === 'NEBULA' ? obj1 : obj2;
+      
+      removeCelestialObject(nebula);
+      star.mass += nebula.mass * 0.1;
+    }
+    
+    // Planet collisions
+    else if (type1 === 'PLANET' || type2 === 'PLANET') {
+      const planet = type1 === 'PLANET' ? obj1 : obj2;
+      const other = type1 === 'PLANET' ? obj2 : obj1;
+      
+      if (other.type === 'STAR') {
+        // Remove from parent's planet list if it exists
+        if (other.planets && Array.isArray(other.planets)) {
+          const parentIndex = other.planets.findIndex(p => p && p.id === planet.id);
+          if (parentIndex !== -1) {
+            other.planets.splice(parentIndex, 1);
+          }
+        }
+      }
+      
+      removeCelestialObject(planet);
+    }
+    
+    // Default case - just remove the smaller object
+    else {
+      const mass1 = obj1.mass || 1;
+      const mass2 = obj2.mass || 1;
+      
+      if (mass1 < mass2) {
+        removeCelestialObject(obj1);
+      } else {
+        removeCelestialObject(obj2);
+      }
+    }
+    
+    updateCharge();
+  } catch (error) {
+    console.error("Error handling collision:", error);
+  }
+}
+
+function removeCelestialObject(obj) {
+  if (!obj || !obj.id) return false;
+
+  try {
+    const index = celestialObjects.findIndex(o => o && o.id === obj.id);
+    if (index !== -1) {
+      // Clear ALL associated timers and cancel animations
+      if (obj.type === 'STAR') {
+        if (obj.novaTimer) {
+          clearTimeout(obj.novaTimer);
+          obj.novaTimer = null;
+        }
+        // Clear any animations in progress
+        if (obj.growthAnimationId) {
+          cancelAnimationFrame(obj.growthAnimationId);
+          obj.growthAnimationId = null;
+        }
+        if (obj.shrinkAnimationId) {
+          cancelAnimationFrame(obj.shrinkAnimationId);
+          obj.shrinkAnimationId = null;
+        }
+        
+        // Clean up all planets related to this star
+        if (obj.planets && Array.isArray(obj.planets)) {
+          obj.planets.forEach(planet => {
+            const planetIndex = celestialObjects.findIndex(o => o && o.id === planet.id);
+            if (planetIndex !== -1) {
+              celestialObjects.splice(planetIndex, 1);
+            }
+          });
+          obj.planets = [];
+        }
+      }
+      
+      // If it's a planet, remove from parent's planet list
+      if (obj.type === 'PLANET' && obj.parentId) {
+        const parent = celestialObjects.find(o => o && o.id === obj.parentId);
+        if (parent && parent.planets && Array.isArray(parent.planets)) {
+          const planetIndex = parent.planets.findIndex(p => p && p.id === obj.id);
+          if (planetIndex !== -1) {
+            parent.planets.splice(planetIndex, 1);
+          }
+        }
+      }
+      
+      // Remove object from array
+      celestialObjects.splice(index, 1);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error removing celestial object:", error);
+    return false;
+  }
+}
+
+function checkWin() {
+  if (totalCharge === 0 && celestialObjects.length >= 5) {
+    winMessageDiv.textContent = `${determineWinTitle()} - Cosmic Harmony Achieved!`;
+    winMessageDiv.style.display = 'block';
+  } else {
+    winMessageDiv.style.display = 'none';
+  }
+}
+
+function determineWinTitle() {
+  // Calculate system complexity
+  const counts = celestialObjects.reduce((acc, obj) => {
+    acc[obj.type] = (acc[obj.type] || 0) + 1;
+    return acc;
+  }, {});
+  
+  const totalObjects = celestialObjects.length;
+  const diversity = Object.keys(counts).length;
+  
+  if (totalObjects > 15) {
+    return "Cosmic Architect";
+  } else if (diversity >= 4) {
+    return "Stellar Engineer";
+  } else if (counts['BLACK_HOLE'] >= 2) {
+    return "Gravity Master";
+  } else {
+    return "Celestial Constructor";
+  }
+}
+
+// Event Handlers
+function addRandomNebula() {
+  const x = Math.random() * (canvas.width - 80) + 40;
+  const y = Math.random() * (canvas.height - 80) + 40;
+  
+  const nebula = createNebula(x, y);
+  celestialObjects.push(nebula);
+  
+  updateCharge();
+}
+
+function addRandomStar(type) {
+  const x = Math.random() * (canvas.width - 50) + 25;
+  const y = Math.random() * (canvas.height - 50) + 25;
+  
+  const star = createStar(type, x, y);
+  celestialObjects.push(star);
+  
+  updateCharge();
+}
+
+function triggerRandomSupernova() {
+  const stars = celestialObjects.filter(obj => obj.type === 'STAR');
+  
+  if (stars.length > 0) {
+    const star = stars[Math.floor(Math.random() * stars.length)];
+    triggerSupernova(star);
+  } else {
+    logEvent("No stars available for supernova");
+  }
+}
+
+function resetGame() {
+  try {
+    // Cancel all animation frames
+    if (window.gameLoopId) {
+      cancelAnimationFrame(window.gameLoopId);
+    }
+    
+    // Clear all timers
+    for (let i = 1; i < 10000; i++) {
+      clearTimeout(i);
+      clearInterval(i);
+    }
+    
+    // Specifically clear object timers
+    for (const obj of celestialObjects) {
+      if (obj && obj.type === 'STAR' && obj.novaTimer) {
+        clearTimeout(obj.novaTimer);
+        obj.novaTimer = null;
+      }
+      
+      // Clear animation IDs
+      if (obj && obj.growthAnimationId) {
+        cancelAnimationFrame(obj.growthAnimationId);
+        obj.growthAnimationId = null;
+      }
+      
+      if (obj && obj.shrinkAnimationId) {
+        cancelAnimationFrame(obj.shrinkAnimationId);
+        obj.shrinkAnimationId = null;
+      }
+    }
+    
+    // Reset all global variables
+    celestialObjects = [];
+    totalCharge = 0;
+    gameTime = 0;
+    nextId = 0;
+    
+    // Reset error counters
+    window.renderErrorCount = 0;
+    window.updateErrorCount = 0;
+    
+    // Update UI
+    updateCharge();
+    updateStats();
+    
+    winMessageDiv.style.display = 'none';
+    
+    // Clear the event log
+    while (eventLogDiv.firstChild) {
+      eventLogDiv.removeChild(eventLogDiv.firstChild);
+    }
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    logEvent("Universe reset - new cosmic epoch begins");
+    logEvent("Stability protocols initialized");
+    
+    // Force garbage collection hint (not guaranteed but helps)
+    if (window.gc) window.gc();
+    
+  } catch (error) {
+    console.error("Error in resetGame:", error);
+    
+    // Last resort reset
+    celestialObjects = [];
+    totalCharge = 0;
+    gameTime = 0;
+    nextId = 0;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+// Event Listeners
+addNebulaBtn.addEventListener('click', addRandomNebula);
+addRedDwarfBtn.addEventListener('click', () => addRandomStar('RED_DWARF'));
+addSunlikeBtn.addEventListener('click', () => addRandomStar('SUN_LIKE'));
+addBlueGiantBtn.addEventListener('click', () => addRandomStar('BLUE_GIANT'));
+addSupernovaeBtn.addEventListener('click', triggerRandomSupernova);
+resetBtn.addEventListener('click', resetGame);
+
+physicsToggle.addEventListener('change', function() {
+  physicsEnabled = this.checked;
+});
+
+canvas.addEventListener('click', function(event) {
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
+  
+  // Check if clicked on an object
+  for (let i = celestialObjects.length - 1; i >= 0; i--) {
+    const obj = celestialObjects[i];
+    const clickRadius = obj.radius + (obj.type === 'BLACK_HOLE' ? obj.accretionDiskRadius : 0);
+    
+    const distance = Math.sqrt((mouseX - obj.x) ** 2 + (mouseY - obj.y) ** 2);
+    if (distance <= clickRadius) {
+      // Special handling for black holes - grow them
+      if (obj.type === 'BLACK_HOLE') {
+        obj.mass += 2;
+        obj.radius = Math.min(obj.radius + 1, 20);
+        logEvent("Black hole has grown more massive");
+      } else {
+        // Apply small impulse to other objects
+        obj.vx += (Math.random() - 0.5) * 2;
+        obj.vy += (Math.random() - 0.5) * 2;
+      }
+      return;
+    }
+  }
+});
+
+// Game Loop
+// Performance optimization variables
+let lastTimestamp = 0;
+const TARGET_FRAME_RATE = 30; // Lower for better stability
+const FRAME_INTERVAL = 1000 / TARGET_FRAME_RATE;
+
+// Debug info
+window.debugMode = false;
+window.renderErrorCount = 0;
+window.updateErrorCount = 0;
+
+function gameLoop(timestamp) {
+  try {
+    // Calculate time since last frame
+    const elapsed = timestamp - lastTimestamp;
+    
+    // Only run update/render if enough time has passed
+    if (elapsed >= FRAME_INTERVAL) {
+      lastTimestamp = timestamp - (elapsed % FRAME_INTERVAL);
+      
+      // Run game logic
+      update();
+      render();
+      
+      // Reset error counters on successful updates
+      window.renderErrorCount = 0;
+      window.updateErrorCount = 0;
+    }
+    
+    // Continue loop
+    requestAnimationFrame(gameLoop);
+  } catch (error) {
+    console.error("Fatal error in game loop:", error);
+    
+    // Auto-recovery system
+    window.updateErrorCount = (window.updateErrorCount || 0) + 1;
+    
+    if (window.updateErrorCount > 5) {
+      // Force reset the game
+      resetGame();
+      window.updateErrorCount = 0;
+    }
+    
+    // Continue the loop even after error
+    setTimeout(() => requestAnimationFrame(gameLoop), 1000);
+  }
+}
+
+// Add debug toggle
+document.addEventListener('keydown', function(event) {
+  // Press D to toggle debug mode
+  if (event.key === 'd' || event.key === 'D') {
+    window.debugMode = !window.debugMode;
+    logEvent("Debug mode " + (window.debugMode ? "enabled" : "disabled"));
+  }
+  
+  // Press R for emergency reset
+  if (event.key === 'r' || event.key === 'R') {
+    resetGame();
+    logEvent("Emergency universe reset performed");
+  }
+});
+
+// Initialize and start game
+function init() {
+  // Set up error handlers
+  window.onerror = function(message, source, lineno, colno, error) {
+    console.error("Global error:", message);
+    return true; // Prevents default error handling
+  };
+  
+  // Clean start
+  resetGame();
+  
+  // Start game loop with timestamp
+  requestAnimationFrame(gameLoop);
+  
+  logEvent("Welcome to the Celestial Constructor: Advanced Astrophysics Edition!");
+  logEvent("Universe stabilized with crash prevention systems");
+}
+
+// Initialize with a small delay to ensure everything is ready
+setTimeout(init, 100);
+</script>
+</body>
+</html>
