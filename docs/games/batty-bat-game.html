@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bat Cave Game</title>
+    <style>
+        /* --- General Styling & Reset --- */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif; /* Or a more stylized, gothic-y font if you prefer */
+            background-color: #121212; /* Dark cave background */
+            color: #ddd;
+            overflow: hidden; /* Prevent scrollbars initially */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;  /* Adjust as needed */
+            height: 600px; /* Adjust as needed */
+            background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="600"%3E%3Cdefs%3E%3CradialGradient id="caveGrad" cx="50%25" cy="50%25" r="75%25" fx="50%25" fy="50%25"%3E%3Cstop offset="0%25" stop-color="%23333" /%3E%3Cstop offset="100%25" stop-color="%23050505" /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width="100%25" height="100%25" fill="url(%23caveGrad)" /%3E%3C/svg%3E'); /* Gradient background */
+            border: 8px solid #444;  /* Rock-like border */
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8); /* Inner shadow for depth */
+            overflow: hidden;  /* Hide content that overflows */
+
+        }
+
+        /* --- Bat Styling --- */
+        #bat {
+            position: absolute;
+            top: 50%;
+            left: 10%;
+            width: 80px; /* Adjust size */
+            height: 60px; /* Adjust size */
+            background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="60" viewBox="0 0 80 60"%3E%3Cpath d="M10 30 L30 10 L40 20 L50 10 L70 30 L40 50 Z" fill="%23555" /%3E%3Ccircle cx="30" cy="25" r="5" fill="%23f00" /%3E%3Ccircle cx="50" cy="25" r="5" fill="%23f00" /%3E%3C/svg%3E');  /* Simple bat SVG */
+            background-size: contain;
+            background-repeat: no-repeat;
+            transition: top 0.2s ease-out; /* Smooth movement */
+            z-index: 10; /* Ensure bat is on top */
+
+        }
+
+
+        /* --- Obstacle Styling (Stalagmites/Stalactites) --- */
+        .obstacle {
+            position: absolute;
+            width: 40px; /* Adjust width */
+            background-color: #666; /* Rock color */
+            border-radius: 5px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5); /* Shadow for depth */
+        }
+
+        /* Top obstacles (stalactites) */
+        .obstacle.top {
+            top: 0;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+        }
+
+        /* Bottom obstacles (stalagmites) */
+        .obstacle.bottom {
+            bottom: 0;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+        }
+
+        /* --- Score/UI --- */
+        #score-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #eee;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+            z-index: 100; /* Above everything else */
+        }
+        #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200; /* Highest z-index */
+            display: none; /* Hidden by default */
+        }
+
+        #game-over-screen h2 {
+            font-size: 3em;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        #game-over-screen button {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            background-color: #5cb85c; /* Bootstrap "success" green */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #game-over-screen button:hover {
+            background-color: #449d44;
+        }
+
+        /* --- Glowing Effect (Optional) --- */
+        .glow {
+            animation: glowing 1.5s infinite alternate;
+        }
+
+        @keyframes glowing {
+            from {
+                box-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
+            }
+            to {
+                box-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
+            }
+        }
+
+
+        /* --- Start Screen --- */
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+
+        #start-screen h1 {
+            font-size: 4em;
+            color: white;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px #000;
+        }
+
+        #start-screen button {
+            padding: 15px 30px;
+            font-size: 1.5em;
+            background-color: #f0ad4e; /* Bootstrap "warning" orange */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        #start-screen button:hover {
+            background-color: #ec971f;
+        }
+
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="start-screen">
+            <h1>Bat Cave</h1>
+            <button id="start-button">Start Game</button>
+        </div>
+
+        <div id="game-over-screen">
+            <h2>Game Over</h2>
+            <p>Your Score: <span id="final-score">0</span></p>
+            <button id="restart-button">Restart</button>
+        </div>
+
+        <div id="bat"></div>
+        <div id="score-display">Score: 0</div>
+    </div>
+
+    <script>
+        // --- Game Variables ---
+        const bat = document.getElementById('bat');
+        const gameContainer = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score-display');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const restartButton = document.getElementById('restart-button');
+        const startScreen = document.getElementById('start-screen');
+        const startButton = document.getElementById('start-button');
+
+
+        let batTop = 270;  // Initial vertical position
+        let score = 0;
+        let gameInterval;
+        let obstacleInterval;
+        let obstacles = [];  // Store obstacle elements
+        let isGameOver = true;
+        let gameStarted = false;
+
+        // --- Game Functions ---
+
+        function startGame() {
+             if (!gameStarted) {
+                gameStarted = true;
+                startScreen.style.display = 'none';
+                gameOverScreen.style.display = 'none'; // Hide game over screen
+                isGameOver = false;
+                score = 0;
+                batTop = 270;
+                bat.style.top = batTop + 'px';
+                scoreDisplay.textContent = 'Score: 0';
+                obstacles.forEach(obstacle => obstacle.remove()); // Remove existing obstacles
+                obstacles = [];
+
+                gameInterval = setInterval(updateGame, 20); // Game loop
+                obstacleInterval = setInterval(createObstacle, 1500); // Create obstacles
+                document.addEventListener('keydown', controlBat); //Bat controls
+            }
+        }
+
+        function updateGame() {
+            if (isGameOver) return;
+
+            batTop += 3; // Gravity
+            bat.style.top = batTop + 'px';
+
+            // --- Collision Detection ---
+            if (batTop < 0 || batTop > gameContainer.offsetHeight - bat.offsetHeight) {
+                endGame(); // Hit top or bottom
+            }
+
+
+            for (let i = 0; i < obstacles.length; i++) {
+                const obstacle = obstacles[i];
+                obstacle.style.left = obstacle.offsetLeft - 5 + 'px'; // Move obstacle
+
+                //Bat/Obstacle Collision
+                if (
+                    bat.offsetLeft + bat.offsetWidth > obstacle.offsetLeft &&
+                    bat.offsetLeft < obstacle.offsetLeft + obstacle.offsetWidth &&
+                    ((obstacle.classList.contains('top') && batTop < obstacle.offsetHeight) ||
+                    (obstacle.classList.contains('bottom') && batTop + bat.offsetHeight > gameContainer.offsetHeight - obstacle.offsetHeight))
+                ) {
+                    endGame();
+                    return; // Stop further processing this frame
+                }
+
+                // Remove obstacle if it's off-screen and update score
+                if (obstacle.offsetLeft + obstacle.offsetWidth < 0) {
+                    obstacle.remove();
+                    obstacles.splice(i, 1);
+                    i--; // Adjust index after removal
+
+                    // IMPORTANT: Score increment happens *only* when an obstacle is removed
+                    // This prevents multiple score increments for the same obstacle.
+                    score++;
+                    scoreDisplay.textContent = 'Score: ' + score;
+
+                }
+            }
+
+        }
+
+        function createObstacle() {
+            if (isGameOver) return;
+
+            const gapHeight = 200; // Space between top and bottom obstacles
+            const obstacleTopHeight = Math.floor(Math.random() * (gameContainer.offsetHeight - gapHeight - 100)) + 50;  // Random height, with min/max
+            const obstacleBottomHeight = gameContainer.offsetHeight - obstacleTopHeight - gapHeight;
+
+            const obstacleTop = document.createElement('div');
+            obstacleTop.classList.add('obstacle', 'top');
+            obstacleTop.style.height = obstacleTopHeight + 'px';
+            obstacleTop.style.left = gameContainer.offsetWidth + 'px';
+            gameContainer.appendChild(obstacleTop);
+            obstacles.push(obstacleTop);
+
+
+            const obstacleBottom = document.createElement('div');
+            obstacleBottom.classList.add('obstacle', 'bottom');
+            obstacleBottom.style.height = obstacleBottomHeight + 'px';
+            obstacleBottom.style.left = gameContainer.offsetWidth + 'px';
+            gameContainer.appendChild(obstacleBottom);
+            obstacles.push(obstacleBottom);
+        }
+
+        function controlBat(event) {
+             if (isGameOver) return; // Don't move if game is over
+            if (event.code === 'Space') {
+                batTop -= 50; // Move bat up
+                bat.style.top = batTop + 'px';
+            }
+        }
+
+
+
+        function endGame() {
+            isGameOver = true;
+            clearInterval(gameInterval);
+            clearInterval(obstacleInterval);
+            document.removeEventListener('keydown', controlBat); //Remove bat control
+            finalScoreDisplay.textContent = score;
+            gameOverScreen.style.display = 'flex';
+            gameStarted = false;
+        }
+
+        // --- Event Listeners ---
+
+        restartButton.addEventListener('click', startGame);
+        startButton.addEventListener('click', startGame);
+        document.addEventListener('keydown', function(event) {
+                if (event.code === 'Space' && !gameStarted) {
+                    startGame();
+                }
+            });
+
+    </script>
+</body>
+</html>
