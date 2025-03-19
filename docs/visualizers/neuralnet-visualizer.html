@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Advanced Interactive Neural Network - In-Depth Brain Simulation</title>
+  <style>
+    body {
+      background-color: #080808;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #network-container {
+      position: relative;
+      width: 900px;
+      height: 700px;
+      background-color: rgba(25, 25, 25, 0.9);
+      border-radius: 15px;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);
+      overflow: hidden;
+    }
+    .neuron {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background-color: #ddd;
+      border: 2px solid #444;
+      box-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #222;
+      font-size: 11px;
+      cursor: pointer;
+      transition: transform 0.1s ease, background-color 0.3s ease, box-shadow 0.3s ease;
+      z-index: 2;
+    }
+    .neuron.active {
+      background-color: #ffdd55;
+      box-shadow: 0 0 20px rgba(255, 221, 85, 0.9);
+      transform: scale(1.3);
+      z-index: 10;
+    }
+    .neuron.inhibitory {
+      background-color: #ff6b6b;
+      border-color: #8b0000;
+      box-shadow: 0 0 8px rgba(255, 107, 107, 0.7);
+    }
+    .neuron.inhibitory.active {
+      background-color: #ff3333;
+      box-shadow: 0 0 20px rgba(255, 51, 51, 0.9);
+    }
+    .neuron.isolated {
+      border: 2px dashed #0f0;
+    }
+    .synapse {
+      position: absolute;
+      background-color: #777;
+      z-index: 1;
+      transition: background-color 0.3s ease, opacity 0.3s, height 0.3s;
+      height: 2px;
+    }
+    .synapse.active {
+      background-color: #ffa500;
+      opacity: 1;
+      height: 4px;
+    }
+    .synapse.inactive {
+      opacity: 0.1;
+    }
+    .synapse.growth {
+      background-color: #00aaff;
+    }
+    .tooltip {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+      z-index: 20;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    /* Dendrite: created per incoming connection */
+    .dendrite {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background-color: #ccc;
+      border: 1px solid #555;
+      border-radius: 50%;
+      box-shadow: 0 0 4px rgba(0, 255, 255, 0.5);
+      z-index: 2.5;
+    }
+    /* Neurotransmitter base style */
+    .neurotransmitter {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      z-index: 3;
+      transition: left 0.5s linear, top 0.5s linear;
+    }
+    /* Specific neurotransmitter colors */
+    .neurotransmitter.serotonin {
+      background-color: #ffb6c1;
+    }
+    .neurotransmitter.dopamine {
+      background-color: #add8e6;
+    }
+    .neurotransmitter.cortisol {
+      background-color: #f4a460;
+    }
+    /* Control Panel Styles */
+    #controls {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background-color: rgba(35, 35, 35, 0.8);
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+      z-index: 25;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    #controls label {
+      color: #eee;
+      margin-right: 5px;
+    }
+    #controls input[type="number"] {
+      width: 60px;
+      padding: 5px;
+      border-radius: 4px;
+      border: 1px solid #555;
+      background-color: #333;
+      color: #eee;
+      margin-right: 10px;
+    }
+    #controls button {
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    #controls button:hover {
+      background-color: #0056b3;
+    }
+    /* Legend */
+    #legend {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background-color: rgba(35, 35, 35, 0.8);
+      padding: 10px;
+      border-radius: 8px;
+      color: #eee;
+      z-index: 25;
+    }
+    #legend div {
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="network-container">
+    <div class="tooltip" id="neuronTooltip"></div>
+  </div>
+
+  <div id="controls">
+    <label for="num-neurons">Neurons:</label>
+    <input type="number" id="num-neurons" value="20" min="1" max="100">
+    <button id="reset-button">Reset Network</button>
+    <br>
+    <label for="stimulation-amount">Stimulation:</label>
+    <input type="number" id="stimulation-amount" value="80" min="-100" max="100">
+    <label for="selected-neuron">Neuron:</label>
+    <input type="number" id="selected-neuron" value="0" min="0">
+    <button id="stimulate-button">Stimulate</button>
+    <br>
+    <label for="plasticity-learning-rate">Plasticity LR:</label>
+    <input type="number" id="plasticity-learning-rate" value="0.1" step="0.01" min="0" max="1">
+    <label for="noise-amplitude">Noise:</label>
+    <input type="number" id="noise-amplitude" value="0.5" step="0.1" min="0" max="10">
+    <br>
+    <label for="adaptation-increment">Adaptation Increment:</label>
+    <input type="number" id="adaptation-increment" value="5" step="0.1" min="0">
+    <br>
+    <label for="adaptation-decay">Adaptation Decay Rate:</label>
+    <input type="number" id="adaptation-decay" value="0.005" step="0.001" min="0">
+    <br>
+    <label for="plasticity-threshold">Plasticity Threshold:</label>
+    <input type="number" id="plasticity-threshold" value="20" step="1" min="0">
+    <br>
+    <label for="plasticity-decay">Plasticity Decay Factor:</label>
+    <input type="number" id="plasticity-decay" value="0.995" step="0.001" min="0" max="1">
+    <br>
+    <label for="charge-hold-duration">Charge Hold Duration (ms):</label>
+    <input type="number" id="charge-hold-duration" value="50" step="1" min="0">
+    <br>
+    <label for="connection-inactivity-duration">Conn. Inactivity Duration (ms):</label>
+    <input type="number" id="connection-inactivity-duration" value="5000" step="100" min="0">
+    <br>
+    <label for="connection-decay-rate">Conn. Decay Rate (per ms):</label>
+    <input type="number" id="connection-decay-rate" value="0.001" step="0.0001" min="0">
+    <br>
+    <label for="growth-range">Growth Range (px):</label>
+    <input type="number" id="growth-range" value="300" step="10" min="0">
+    <label for="growth-probability">Growth Probability Factor:</label>
+    <input type="number" id="growth-probability" value="0.5" step="0.01" min="0" max="1">
+    <br>
+    <button id="pause-button">Pause</button>
+  </div>
+
+  <div id="legend">
+    <div><span style="color: #ffdd55;">&#9679;</span> Active Excitatory</div>
+    <div><span style="color: #ff3333;">&#9679;</span> Active Inhibitory</div>
+    <div><span style="color: #ffa500;">&#9472;</span> Active Synapse</div>
+    <div><span style="color: #00aaff;">&#9472;</span> Growth Connection</div>
+    <div><span style="background: #ffb6c1; width: 12px; height: 12px; display: inline-block; border-radius:50%;"></span> Serotonin</div>
+    <div><span style="background: #add8e6; width: 12px; height: 12px; display: inline-block; border-radius:50%;"></span> Dopamine</div>
+    <div><span style="background: #f4a460; width: 12px; height: 12px; display: inline-block; border-radius:50%;"></span> Cortisol</div>
+  </div>
+
+  <script>
+    // Global simulation parameters
+    let plasticityLearningRate = parseFloat(document.getElementById('plasticity-learning-rate').value);
+    let noiseAmplitude = parseFloat(document.getElementById('noise-amplitude').value);
+    let isPaused = false;
+    let neurons = [];
+
+    // Global variables for adaptation, plasticity, charge holding, connection decay
+    let adaptationIncrement = parseFloat(document.getElementById('adaptation-increment').value);
+    let adaptationDecayRate = parseFloat(document.getElementById('adaptation-decay').value);
+    let plasticityThreshold = parseFloat(document.getElementById('plasticity-threshold').value);
+    let plasticityDecayFactor = parseFloat(document.getElementById('plasticity-decay').value);
+    let chargeHoldDuration = parseFloat(document.getElementById('charge-hold-duration').value);
+    let connectionInactivityDuration = parseFloat(document.getElementById('connection-inactivity-duration').value);
+    let connectionDecayRate = parseFloat(document.getElementById('connection-decay-rate').value);
+    // Growth parameters
+    let growthRange = parseFloat(document.getElementById('growth-range').value);
+    let growthProbability = parseFloat(document.getElementById('growth-probability').value);
+    let lastGrowthAttempt = 0;
+    const growthInterval = 1000; // ms
+
+    // NEW: Tolerance parameters (for neurotransmitter tolerance)
+    let toleranceIncrement = 0.1;      // increment in tolerance per transmission
+    let toleranceDecayRate = 0.0001;     // decay per ms
+
+    // Update simulation parameters when controls change
+    document.getElementById('plasticity-learning-rate').addEventListener('change', e => {
+      plasticityLearningRate = parseFloat(e.target.value);
+    });
+    document.getElementById('noise-amplitude').addEventListener('change', e => {
+      noiseAmplitude = parseFloat(e.target.value);
+    });
+    document.getElementById('adaptation-increment').addEventListener('change', e => {
+      adaptationIncrement = parseFloat(e.target.value);
+    });
+    document.getElementById('adaptation-decay').addEventListener('change', e => {
+      adaptationDecayRate = parseFloat(e.target.value);
+    });
+    document.getElementById('plasticity-threshold').addEventListener('change', e => {
+      plasticityThreshold = parseFloat(e.target.value);
+    });
+    document.getElementById('plasticity-decay').addEventListener('change', e => {
+      plasticityDecayFactor = parseFloat(e.target.value);
+    });
+    document.getElementById('charge-hold-duration').addEventListener('change', e => {
+      chargeHoldDuration = parseFloat(e.target.value);
+    });
+    document.getElementById('connection-inactivity-duration').addEventListener('change', e => {
+      connectionInactivityDuration = parseFloat(e.target.value);
+    });
+    document.getElementById('connection-decay-rate').addEventListener('change', e => {
+      connectionDecayRate = parseFloat(e.target.value);
+    });
+    document.getElementById('growth-range').addEventListener('change', e => {
+      growthRange = parseFloat(e.target.value);
+    });
+    document.getElementById('growth-probability').addEventListener('change', e => {
+      growthProbability = parseFloat(e.target.value);
+    });
+    document.getElementById('pause-button').addEventListener('click', () => {
+      isPaused = !isPaused;
+      document.getElementById('pause-button').textContent = isPaused ? "Resume" : "Pause";
+    });
+    document.getElementById('reset-button').addEventListener('click', () => {
+      initializeNetwork();
+    });
+
+    // STDP update: adjust weight based on spike timing difference
+    function stdpUpdate(preNeuron, postNeuron, weight) {
+      let deltaT = postNeuron.lastFired - preNeuron.lastFired;
+      if (deltaT > 0 && deltaT < 20) {
+        return weight + plasticityLearningRate * Math.exp(-deltaT / 20);
+      } else if (deltaT < 0 && -deltaT < 20) {
+        return weight - plasticityLearningRate * Math.exp(deltaT / 20);
+      }
+      return weight;
+    }
+
+    class Neuron {
+      constructor(id, x, y, type = 'excitatory') {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.potential = -70;
+        this.threshold = -55;
+        this.connections = []; // { targetNeuron, weight, type, lastActivated, isGrowth, tolerance }
+        this.element = null;
+        this.isFiring = false;
+        this.refractoryPeriod = 20; // ms
+        this.lastFired = -Infinity;
+        this.decayRate = 0.5;
+        this.leakReversalPotential = -75;
+        this.leakConductance = 0.1;
+        this.adaptationLevel = 0;
+        this.plasticityCounter = 0;
+        this.chargeHoldTimer = 0;
+        this.storedValue = Math.floor(Math.random() * 10);
+        // Incoming dendrites stored per source neuron id
+        this.incomingDendrites = {};
+      }
+
+      createDOMElement() {
+        // Create soma
+        this.element = document.createElement('div');
+        this.element.classList.add('neuron');
+        if (this.type === 'inhibitory') this.element.classList.add('inhibitory');
+        this.element.id = `neuron-${this.id}`;
+        this.element.style.left = `${this.x}px`;
+        this.element.style.top = `${this.y}px`;
+        this.element.textContent = this.id;
+        this.element.addEventListener('click', () =>
+          this.stimulate(parseFloat(document.getElementById('stimulation-amount').value))
+        );
+        this.element.addEventListener('mouseover', this.showTooltip.bind(this));
+        this.element.addEventListener('mouseout', this.hideTooltip.bind(this));
+        document.getElementById('network-container').appendChild(this.element);
+      }
+
+      // For an incoming connection from a given source, get or create a dendrite terminal.
+      getOrCreateDendrite(sourceId, sourceX, sourceY) {
+        if (this.incomingDendrites[sourceId]) return this.incomingDendrites[sourceId];
+        const dendrite = document.createElement('div');
+        dendrite.classList.add('dendrite');
+        const centerX = this.x + 12;
+        const centerY = this.y + 12;
+        const dx = sourceX - centerX;
+        const dy = sourceY - centerY;
+        const angle = Math.atan2(dy, dx);
+        const radius = 20;
+        const dendriteSize = 8;
+        const dendriteX = centerX + radius * Math.cos(angle) - dendriteSize / 2;
+        const dendriteY = centerY + radius * Math.sin(angle) - dendriteSize / 2;
+        dendrite.style.left = `${dendriteX}px`;
+        dendrite.style.top = `${dendriteY}px`;
+        dendrite.style.width = `${dendriteSize}px`;
+        dendrite.style.height = `${dendriteSize}px`;
+        document.getElementById('network-container').appendChild(dendrite);
+        this.incomingDendrites[sourceId] = dendrite;
+        return dendrite;
+      }
+
+      showTooltip() {
+        const tooltip = document.getElementById('neuronTooltip');
+        let typeText = this.type === 'excitatory' ? 'Excitatory' : 'Inhibitory';
+        tooltip.textContent = `Neuron ${this.id} (${typeText}) - Pot: ${this.potential.toFixed(2)}mV, Value: ${this.storedValue}`;
+        tooltip.style.left = `${this.x + 30}px`;
+        tooltip.style.top = `${this.y}px`;
+        tooltip.style.display = 'block';
+      }
+
+      hideTooltip() {
+        document.getElementById('neuronTooltip').style.display = 'none';
+      }
+
+      addConnection(targetNeuron, weight, type = 'excitatory', isGrowth = false) {
+        // Initialize tolerance values for each transmitter type
+        this.connections.push({ 
+          targetNeuron, 
+          weight, 
+          type, 
+          lastActivated: Date.now(), 
+          isGrowth,
+          tolerance: { serotonin: 0, dopamine: 0, cortisol: 0 }
+        });
+      }
+
+      receiveSignal(incomingPotential) {
+        if (this.isFiring || (Date.now() - this.lastFired < this.refractoryPeriod)) return;
+        this.potential += incomingPotential;
+        this.chargeHoldTimer = chargeHoldDuration;
+        this.updateVisualPotential();
+        if (this.potential >= (this.threshold + this.adaptationLevel)) {
+          this.fireActionPotential();
+        }
+      }
+
+      async fireActionPotential() {
+        if (this.isFiring || (Date.now() - this.lastFired < this.refractoryPeriod)) return;
+        this.isFiring = true;
+        this.lastFired = Date.now();
+        this.element.classList.add('active');
+
+        this.adaptationLevel += adaptationIncrement;
+        this.plasticityCounter += (this.type === 'excitatory' ? 1 : -1);
+        this.checkPlasticity();
+
+        // Depolarization sequence
+        this.potential = 30;
+        this.updateVisualPotential();
+        await this.delay(3);
+        this.potential = -90;
+        this.updateVisualPotential();
+        await this.delay(5);
+        this.potential = -70;
+        this.updateVisualPotential();
+
+        // Propagate signal along outgoing connections
+        for (const connection of this.connections) {
+          connection.lastActivated = Date.now();
+          let baseSignal = connection.type === 'inhibitory' ? -Math.abs(connection.weight) : connection.weight;
+          // Activate synapse and get chosen neurotransmitter type
+          let transmitter = this.activateSynapse(connection.targetNeuron, connection.type, connection.isGrowth);
+          // Effective signal is reduced by the current tolerance for that transmitter
+          let effectiveSignal = baseSignal * (1 - connection.tolerance[transmitter]);
+          connection.targetNeuron.receiveSignal(effectiveSignal);
+          // Increase tolerance for this transmitter (up to a maximum of 1)
+          connection.tolerance[transmitter] = Math.min(1, connection.tolerance[transmitter] + toleranceIncrement);
+          connection.weight = stdpUpdate(this, connection.targetNeuron, connection.weight);
+        }
+
+        this.element.classList.remove('active');
+        this.isFiring = false;
+      }
+
+      checkPlasticity() {
+        if (this.type === 'excitatory' && this.plasticityCounter > plasticityThreshold) {
+          this.type = 'inhibitory';
+          this.element.classList.add('inhibitory');
+          this.plasticityCounter = 0;
+        } else if (this.type === 'inhibitory' && this.plasticityCounter < -plasticityThreshold) {
+          this.type = 'excitatory';
+          this.element.classList.remove('inhibitory');
+          this.plasticityCounter = 0;
+        }
+      }
+
+      // Activate a synapse from this neuron to targetNeuron.
+      // Uses the bottom-center of the soma as the starting point.
+      // Returns the chosen neurotransmitter type.
+      activateSynapse(targetNeuron, type, isGrowth) {
+        const synapseId = `synapse-${this.id}-${targetNeuron.id}`;
+        let synapse = document.getElementById(synapseId);
+        const x1 = this.x + 12;
+        const y1 = this.y + 24;
+        let dendrite = targetNeuron.getOrCreateDendrite(this.id, x1, y1);
+        const x2 = parseFloat(dendrite.style.left) + parseFloat(dendrite.style.width) / 2;
+        const y2 = parseFloat(dendrite.style.top) + parseFloat(dendrite.style.height) / 2;
+        const length = Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
+        const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+        if (!synapse) {
+          synapse = document.createElement('div');
+          synapse.classList.add('synapse');
+          if (isGrowth) synapse.classList.add('growth');
+          if (type === 'inhibitory') synapse.classList.add('inhibitory');
+          synapse.id = synapseId;
+          synapse.style.width = `${length}px`;
+          synapse.style.left = `${x1}px`;
+          synapse.style.top = `${y1}px`;
+          synapse.style.transform = `rotate(${angle}deg)`;
+          synapse.style.transformOrigin = '0 0';
+          document.getElementById('network-container').appendChild(synapse);
+        } else {
+          synapse.style.width = `${length}px`;
+          synapse.style.left = `${x1}px`;
+          synapse.style.top = `${y1}px`;
+          synapse.style.transform = `rotate(${angle}deg)`;
+        }
+        // Choose one neurotransmitter type at random
+        const chemicals = ['serotonin', 'dopamine', 'cortisol'];
+        const chosen = chemicals[Math.floor(Math.random() * chemicals.length)];
+        this.launchNeurotransmitter(x1, y1, x2, y2, chosen);
+        synapse.classList.add('active');
+        synapse.classList.remove('inactive');
+        setTimeout(() => {
+          synapse.classList.remove('active');
+          synapse.classList.add('inactive');
+        }, 120);
+        return chosen;
+      }
+
+      // Launch a neurotransmitter particle along the synapse.
+      // The 'transmitter' parameter determines its CSS class (and thus color).
+      launchNeurotransmitter(x1, y1, x2, y2, transmitter) {
+        const nt = document.createElement('div');
+        nt.classList.add('neurotransmitter', transmitter);
+        nt.style.left = `${x1 - 3}px`;
+        nt.style.top = `${y1 - 3}px`;
+        document.getElementById('network-container').appendChild(nt);
+        setTimeout(() => {
+          nt.style.left = `${x2 - 3}px`;
+          nt.style.top = `${y2 - 3}px`;
+        }, 10);
+        setTimeout(() => {
+          if (nt.parentNode) nt.parentNode.removeChild(nt);
+        }, 520);
+      }
+
+      stimulate(amount) {
+        this.receiveSignal(amount);
+      }
+
+      updatePotential(deltaTime) {
+        if (!this.isFiring) {
+          if (this.chargeHoldTimer > 0) {
+            this.chargeHoldTimer -= deltaTime;
+          } else {
+            let leakCurrent = this.leakConductance * (this.potential - this.leakReversalPotential);
+            this.potential -= leakCurrent * deltaTime;
+            this.potential += (this.decayRate * (-70 - this.potential)) * deltaTime;
+          }
+          this.adaptationLevel = Math.max(0, this.adaptationLevel - adaptationDecayRate * deltaTime);
+          this.plasticityCounter *= plasticityDecayFactor;
+          this.updateVisualPotential();
+        }
+      }
+
+      updateVisualPotential() {
+        this.element.setAttribute('data-potential', this.potential.toFixed(2));
+        this.showTooltip();
+        if (this.connections.length === 0) {
+          this.element.classList.add('isolated');
+        } else {
+          this.element.classList.remove('isolated');
+        }
+      }
+
+      delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+      }
+    }
+
+    function initializeNetwork() {
+      const networkContainer = document.getElementById('network-container');
+      Array.from(networkContainer.children).forEach(child => {
+        if (!child.classList.contains('tooltip')) {
+          networkContainer.removeChild(child);
+        }
+      });
+      neurons = [];
+      const numNeurons = parseInt(document.getElementById('num-neurons').value);
+      const containerWidth = networkContainer.offsetWidth;
+      const containerHeight = networkContainer.offsetHeight;
+      const excitatoryRatio = 0.8;
+      console.log(`Creating ${numNeurons} neurons...`);
+      for (let i = 0; i < numNeurons; i++) {
+        const x = Math.random() * (containerWidth - 60) + 30;
+        const y = Math.random() * (containerHeight - 60) + 30;
+        const type = Math.random() < excitatoryRatio ? 'excitatory' : 'inhibitory';
+        const neuron = new Neuron(i, x, y, type);
+        neurons.push(neuron);
+        neuron.createDOMElement();
+      }
+      console.log("Neuron creation complete.");
+      // Create initial random connections
+      for (let i = 0; i < neurons.length; i++) {
+        for (let j = 0; j < neurons.length; j++) {
+          if (i !== j && Math.random() < 0.4) {
+            const weight = (Math.random() * 20) - 10;
+            const type = neurons[i].type;
+            neurons[i].addConnection(neurons[j], weight, type);
+            neurons[i].activateSynapse(neurons[j], type, false);
+          }
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeNetwork();
+      let lastTime = performance.now();
+      function updateNetwork(currentTime) {
+        let dtMs = currentTime - lastTime;
+        lastTime = currentTime;
+        if (!isPaused) {
+          neurons.forEach(neuron => {
+            neuron.updatePotential(dtMs);
+          });
+          // Decay connection tolerance values over time
+          neurons.forEach(neuron => {
+            neuron.connections.forEach(connection => {
+              for (let chem in connection.tolerance) {
+                connection.tolerance[chem] = Math.max(0, connection.tolerance[chem] - toleranceDecayRate * dtMs);
+              }
+            });
+          });
+          // Update connection decay and remove weak connections
+          const now = Date.now();
+          neurons.forEach(neuron => {
+            for (let i = neuron.connections.length - 1; i >= 0; i--) {
+              let connection = neuron.connections[i];
+              if (now - connection.lastActivated > connectionInactivityDuration) {
+                if (connection.weight > 0) {
+                  connection.weight = Math.max(0, connection.weight - connectionDecayRate * dtMs);
+                } else if (connection.weight < 0) {
+                  connection.weight = Math.min(0, connection.weight + connectionDecayRate * dtMs);
+                }
+                if (Math.abs(connection.weight) < 0.1) {
+                  neuron.connections.splice(i, 1);
+                  const synapseId = `synapse-${neuron.id}-${connection.targetNeuron.id}`;
+                  const synapseEl = document.getElementById(synapseId);
+                  if (synapseEl) {
+                    synapseEl.parentNode.removeChild(synapseEl);
+                  }
+                }
+              }
+            }
+          });
+          // Growth process for isolated neurons (for outgoing connections)
+          if (currentTime - lastGrowthAttempt > growthInterval) {
+            neurons.forEach(isolatedNeuron => {
+              if (isolatedNeuron.connections.length === 0) {
+                neurons.forEach(other => {
+                  if (other.id === isolatedNeuron.id) return;
+                  let exists = other.connections.some(conn => conn.targetNeuron.id === isolatedNeuron.id);
+                  if (!exists) {
+                    let dx = other.x - isolatedNeuron.x;
+                    let dy = other.y - isolatedNeuron.y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < growthRange) {
+                      let chance = growthProbability * (1 - distance / growthRange);
+                      if (Math.random() < chance) {
+                        let initialWeight = (Math.random() * 20) - 10;
+                        other.addConnection(isolatedNeuron, initialWeight, other.type, true);
+                        other.activateSynapse(isolatedNeuron, other.type, true);
+                      }
+                    }
+                  }
+                });
+              }
+            });
+            lastGrowthAttempt = currentTime;
+          }
+          // Check and remove dendrites with no incoming connection
+          neurons.forEach(targetNeuron => {
+            for (const sourceId in targetNeuron.incomingDendrites) {
+              let hasIncoming = false;
+              for (let sourceNeuron of neurons) {
+                if (sourceNeuron.id == sourceId) {
+                  if (sourceNeuron.connections.some(conn => conn.targetNeuron.id === targetNeuron.id)) {
+                    hasIncoming = true;
+                    break;
+                  }
+                }
+              }
+              if (!hasIncoming) {
+                let dendrite = targetNeuron.incomingDendrites[sourceId];
+                if (dendrite && dendrite.parentNode) dendrite.parentNode.removeChild(dendrite);
+                delete targetNeuron.incomingDendrites[sourceId];
+              }
+            }
+          });
+        }
+        requestAnimationFrame(updateNetwork);
+      }
+      requestAnimationFrame(updateNetwork);
+
+      setInterval(() => {
+        if (!isPaused) {
+          neurons.forEach(neuron => {
+            if (!neuron.isFiring) {
+              const noise = (Math.random() - 0.5) * noiseAmplitude;
+              neuron.receiveSignal(noise);
+            }
+          });
+        }
+      }, 100);
+    });
+
+    document.getElementById('stimulate-button').addEventListener('click', () => {
+      const amount = parseFloat(document.getElementById('stimulation-amount').value);
+      const neuronId = parseInt(document.getElementById('selected-neuron').value);
+      if (neuronId >= 0 && neuronId < neurons.length) {
+        neurons[neuronId].stimulate(amount);
+      } else {
+        alert("Invalid Neuron ID");
+      }
+    });
+  </script>
+</body>
+</html>
