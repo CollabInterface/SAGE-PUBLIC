@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Medieval Fantasy Simulation - Enhanced</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #333;
+      overflow: hidden;
+      font-family: 'Times New Roman', serif;
+    }
+    canvas {
+      display: block;
+    }
+    .stats-panel {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      pointer-events: none;
+      font-size: 12px;
+    }
+    .left-stats {
+      top: 10px;
+      left: 10px;
+      width: 220px;
+    }
+    .right-stats {
+      top: 10px;
+      right: 10px;
+      width: 220px;
+      text-align: right;
+    }
+    .stat-value {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+<div id="leftStats" class="stats-panel left-stats"></div>
+<div id="rightStats" class="stats-panel right-stats"></div>
+<canvas id="battleCanvas"></canvas>
+<script>
+  // ========================================================
+  // 1) TEAM COLOR UTILS
+  // ========================================================
+  function getTeamColorChannels(team) {
+    if (team === "blue") {
+      let r = Math.floor(Math.random() * 128);
+      let g = Math.floor(Math.random() * 128);
+      let b = 128 + Math.floor(Math.random() * 128);
+      return { r, g, b };
+    } 
+    else if (team === "red") {
+      let r = 128 + Math.floor(Math.random() * 128);
+      let g = Math.floor(Math.random() * 128);
+      let b = Math.floor(Math.random() * 128);
+      return { r, g, b };
+    }
+    // fallback
+    return { r: 255, g: 255, b: 255 };
+  }
+  function channelsToCSS({r, g, b}) {
+    return `rgb(${r},${g},${b})`;
+  }
+  function updateColorTowardsHumanity(colorChannels) {
+    const targetG = 128; 
+    let speed = 0.01;    
+    let diff = targetG - colorChannels.g;
+    colorChannels.g += diff * speed;
+  }
+
+  // ========================================================
+  // 2) SETUP
+  // ========================================================
+  const canvas = document.getElementById("battleCanvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  window.addEventListener("resize", () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
+
+  // Main arrays
+  let units = []; 
+  let castles = [];
+  let resourceNodes = []; // these are "trees"
+  let animals = [];
+  let apples = [];  // apples dropped by trees
+
+  let badMemories = []; 
+
+  const teamAttackMode = {
+    "blue": false,
+    "red": false
+  };
+
+  const combatStats = {
+    "blue": {
+      attacksLaunched: 0,
+      unitsLost: 0,
+      unitsKilled: 0,
+      damageDealt: 0,
+      lastCombatTime: 0,
+      knightEffectiveness: 1.0,
+      workerEffectiveness: 1.0
+    },
+    "red": {
+      attacksLaunched: 0,
+      unitsLost: 0,
+      unitsKilled: 0,
+      damageDealt: 0,
+      lastCombatTime: 0,
+      knightEffectiveness: 1.0,
+      workerEffectiveness: 1.0
+    }
+  };
+
+  // For enhanced stats
+  const gameStats = {
+    startTime: Date.now(),
+    frameCount: 0,
+    lastTime: Date.now(),
+    fps: 0,
+    lastFpsUpdate: 0
+  };
+
+  let unitIdCounter = 0;
+  const randomNames = [
+    "Arthur","Lancelot","Gawain","Percival","Galahad","Tristan","Guinevere","Merlin","Morgana","Elaine"
+  ];
+
+  const BUILD_PROTECTION_RADIUS = 60;
+  const UNIT_CAP = 50;
+
+  // ========================================================
+  // 3) UTILITY AI HELPERS
+  // ========================================================
+  function generateRandomWaypoint(x, y, range = 150) {
+    const angle = Math.random() * 2 * Math.PI;
+    const dist = Math.random() * range;
+    return {
+      x: x + Math.cos(angle) * dist,
+      y: y + Math.sin(angle) * dist
+    };
+  }
+
+  function scoreWaypoint(waypoint) {
+    let memoryCost = 0;
+    badMemories.forEach(mem => {
+      const d = Math.hypot(mem.x - waypoint.x, mem.y - waypoint.y);
+      if (d < 200) {
+        memoryCost += mem.intensity * (200 - d) * 0.02;
+      }
+    });
+    return -memoryCost; 
+  }
+
+  function adjustAngleForEdges(x, y, angle, speed) {
+    const margin = 50;
+    let avoidX = 0, avoidY = 0;
+    if (x < margin) {
+      avoidX = (margin - x) / margin;
+    } else if (x > canvas.width - margin) {
+      avoidX = -(x - (canvas.width - margin)) / margin;
+    }
+    if (y < margin) {
+      avoidY = (margin - y) / margin;
+    } else if (y > canvas.height - margin) {
+      avoidY = -(y - (canvas.height - margin)) / margin;
+    }
+    if (avoidX !== 0 || avoidY !== 0) {
+      let avoidAngle = Math.atan2(avoidY, avoidX);
+      angle += 0.3 * ((((avoidAngle + Math.PI) % (2 * Math.PI)) - angle));
+    }
+    return angle;
+  }
+
+  function addCenterBias(unit) {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const centerAngle = Math.atan2(centerY - unit.y, centerX - unit.x);
+    let diffCenter = ((centerAngle - unit.angle + Math.PI) % (2 * Math.PI)) - Math.PI;
+    unit.angle += diffCenter * 0.01;
+    return unit.angle;
+  }
+
+  function computeTeamThreat(team) {
+    let threat = 0;
+    units.forEach(u => {
+      if (u.team === team) {
+        threat += u.skills.fighter;
+      }
+    });
+    return threat;
+  }
+
+  function canBuildCastle(x, y) {
+    for (let castle of castles) {
+      let d = Math.hypot(x - castle.x, y - castle.y);
+      if (d < BUILD_PROTECTION_RADIUS) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function adjustAngleForEnemies(x, y, angle, speed, selfTeam) {
+    let newAngle = angle;
+    let avoidAngles = [];
+    units.forEach(unit => {
+      if (unit.team !== selfTeam && unit.skills.fighter > 1) {
+        let d = Math.hypot(unit.x - x, unit.y - y);
+        if (d < 150) {
+          let awayAngle = Math.atan2(y - unit.y, x - unit.x);
+          avoidAngles.push(awayAngle);
+        }
+      }
+    });
+    if (avoidAngles.length > 0) {
+      let sumX = 0, sumY = 0;
+      avoidAngles.forEach(a => {
+        sumX += Math.cos(a);
+        sumY += Math.sin(a);
+      });
+      let avgAngle = Math.atan2(sumY, sumX);
+      newAngle = newAngle + 0.4 * ((((avgAngle + Math.PI) % (2 * Math.PI)) - newAngle));
+    }
+    return newAngle;
+  }
+
+  function getNearestCastle(team, x, y) {
+    let nearest = null;
+    let nearestDist = Infinity;
+    castles.forEach(castle => {
+      if (castle.team === team) {
+        let d = Math.hypot(castle.x - x, castle.y - y);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = castle;
+        }
+      }
+    });
+    return { castle: nearest, dist: nearestDist };
+  }
+
+  // ========================================================
+  // 4) ARROW CLASS
+  // ========================================================
+  class Arrow {
+    constructor(x, y, angle, speed, color, team) {
+      this.x = x;
+      this.y = y;
+      this.angle = angle;
+      this.speed = speed;
+      this.color = color;  
+      this.team = team;
+      this.radius = 2;
+      this.hit = false;
+      this.distanceTraveled = 0;
+      this.maxRange = 100;
+    }
+    update() {
+      const dx = Math.cos(this.angle) * this.speed;
+      const dy = Math.sin(this.angle) * this.speed;
+      this.x += dx;
+      this.y += dy;
+      this.distanceTraveled += Math.hypot(dx, dy);
+      if (this.distanceTraveled > this.maxRange) this.hit = true;
+    }
+    isInBounds() {
+      return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+    }
+  }
+
+  // ========================================================
+  // 5) SEPARATION
+  // ========================================================
+  function applySeparation(unit) {
+    let separationForceX = 0, separationForceY = 0;
+    const separationDistance = 40;
+    units.forEach(other => {
+      if (other.id !== unit.id) {
+        let dx = unit.x - other.x;
+        let dy = unit.y - other.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist < separationDistance && dist > 0) {
+          if (!(other.id in unit.affinities)) {
+            unit.affinities[other.id] = Math.random() * 2 - 1;
+          }
+          let affinity = unit.affinities[other.id];
+          let multiplier = (affinity < 0 ? 1 - affinity : 1);
+          let force = (separationDistance - dist) * multiplier;
+          separationForceX += (dx / dist) * force;
+          separationForceY += (dy / dist) * force;
+        }
+      }
+    });
+    unit.x += separationForceX * 0.05;
+    unit.y += separationForceY * 0.05;
+  }
+
+  // ========================================================
+  // 6) UNIT CLASS
+  // ========================================================
+  class Unit {
+    constructor(x, y, size, team, initialSkills = { fighter: 0, worker: 0, leader: 0, trainer: 0 }) {
+      this.id = unitIdCounter++;
+      this.affinities = {};
+      this.randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
+
+      this.x = x;
+      this.y = y;
+      this.angle = Math.random() * Math.PI * 2;
+      this.size = size;
+      this.team = team;
+      this.speed = 1.0;
+
+      this.colorChannels = getTeamColorChannels(team);
+      this.color = channelsToCSS(this.colorChannels);
+
+      this.skills = {
+        fighter: initialSkills.fighter || 0,
+        worker: initialSkills.worker || 0,
+        leader: initialSkills.leader || 0,
+        trainer: initialSkills.trainer || 0
+      };
+
+      this.arrows = [];
+      this.fireCooldown = Math.floor(Math.random() * 100 + 50);
+      this.hp = 100;
+      this.maxHp = 100;
+
+      // Inventory system
+      this.rightHand = null;
+      this.leftHand = null;
+      this.carrying = 0;
+      this.buildTimer = 200;
+      this.state = "idle"; 
+
+      this.isResting = false;
+      this.restTimer = 0;
+      this.timeUntilRest = Math.floor(Math.random() * 600) + 300;
+
+      this.currentOrder = null;
+      this.orderWeights = { rally: 1, rest: 1, attack: 1 };
+      this.orderTimer = 300;
+      this.trainCooldown = 300;
+
+      // Waypoints
+      this.currentWaypoint = { x: this.x, y: this.y };
+      this.altWaypoint = generateRandomWaypoint(this.x, this.y, 200);
+      this.currentValue = scoreWaypoint(this.currentWaypoint);
+      this.altValue = scoreWaypoint(this.altWaypoint);
+
+      this.personality = ["aggressive", "defensive", "friendly", "neutral"][Math.floor(Math.random() * 4)];
+      this.message = "";
+      this.messageTimer = 0;
+    }
+
+    communicate(msg) {
+      this.message = msg;
+      this.messageTimer = 60;
+    }
+
+    incrementSkill(skillName, amount = 0.1) {
+      if (this.skills[skillName] === undefined) return;
+      this.skills[skillName] += amount;
+    }
+
+    broadcast(msg) {
+      units.forEach(u => {
+        if (u.team === this.team && Math.hypot(u.x - this.x, u.y - this.y) < 100) {
+          u.communicate(msg);
+        }
+      });
+    }
+
+    evaluateWaypoints() {
+      if (this.altValue > this.currentValue) {
+        this.currentWaypoint = { ...this.altWaypoint };
+        this.currentValue = this.altValue;
+        this.communicate("New waypoint is better!");
+      }
+      this.altWaypoint = generateRandomWaypoint(this.currentWaypoint.x, this.currentWaypoint.y, 100);
+      this.altValue = scoreWaypoint(this.altWaypoint);
+    }
+
+    update() {
+      updateColorTowardsHumanity(this.colorChannels);
+      this.color = channelsToCSS(this.colorChannels);
+
+      if (!this.isResting) {
+        this.timeUntilRest--;
+        if (this.timeUntilRest <= 0) {
+          this.isResting = true;
+          this.restTimer = Math.floor(Math.random() * 180) + 120;
+          this.communicate("Taking a break...");
+        }
+      } else {
+        this.restTimer--;
+        if (this.restTimer <= 0) {
+          this.isResting = false;
+          this.timeUntilRest = Math.floor(Math.random() * 600) + 300;
+          this.communicate("Back to work/fight!");
+        } else {
+          applySeparation(this);
+          return;
+        }
+      }
+
+      this.maybeTrainRookie();
+
+      if (Math.random() < 0.01) {
+        this.evaluateWaypoints();
+      }
+
+      let dx = this.currentWaypoint.x - this.x;
+      let dy = this.currentWaypoint.y - this.y;
+      let distance = Math.hypot(dx, dy);
+      let targetAngle = Math.atan2(dy, dx);
+      let diffAngle = targetAngle - this.angle;
+      diffAngle = ((diffAngle + Math.PI) % (2 * Math.PI)) - Math.PI;
+      this.angle += diffAngle * 0.05;
+
+      if (this.skills.leader > 0) {
+        this.updateLeadership();
+      }
+      if (this.skills.fighter > 0) {
+        this.updateFighter();
+      }
+      if (this.skills.worker > 0) {
+        this.updateWorker();
+      }
+
+      addCenterBias(this);
+      applySeparation(this);
+
+      if (distance > 3) {
+        this.angle = adjustAngleForEnemies(this.x, this.y, this.angle, this.speed, this.team);
+        this.angle = adjustAngleForEdges(this.x, this.y, this.angle, this.speed);
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed;
+      }
+    }
+
+    maybeTrainRookie() {
+      if (this.skills.trainer < 1.0) return;
+      if (this.trainCooldown > 0) {
+        this.trainCooldown--;
+        return;
+      }
+      if (Math.random() < 0.02) {
+        let { castle: nearestCastle } = getNearestCastle(this.team, this.x, this.y);
+        if (nearestCastle && nearestCastle.food >= 10) {
+          nearestCastle.food -= 10;
+          let rx = this.x + (Math.random()-0.5)*30;
+          let ry = this.y + (Math.random()-0.5)*30;
+          let rookie = new Unit(rx, ry, 10, this.team, { fighter:0, worker:0, leader:0, trainer:0 });
+          units.push(rookie);
+          this.communicate("Trained a new rookie!");
+          this.incrementSkill("trainer", 0.05);
+        }
+      }
+      this.trainCooldown = 300;
+    }
+
+    updateLeadership() {
+      this.orderTimer--;
+      if (this.orderTimer <= 0) {
+        const stats = combatStats[this.team];
+        
+        // Strategic leaders with trait > 1.0 ignore unit deaths
+        if (this.skills.leader <= 1.0) {
+          let diff = (stats.unitsKilled || 0) - (stats.unitsLost || 0);
+          this.orderWeights.attack += 0.5 * diff;
+          if (this.orderWeights.attack < 0) this.orderWeights.attack = 0;
+        } else {
+          // High-level leaders are more aggressive and strategic
+          this.orderWeights.attack = Math.max(2.0, this.orderWeights.attack);
+          
+          // Prioritize resource control (trees)
+          this.moveTowardResourceControl();
+        }
+        
+        for (let key in this.orderWeights) {
+          this.orderWeights[key] += 0.1 * (1 - this.orderWeights[key]); 
+        }
+        let total = this.orderWeights.rally + this.orderWeights.rest + this.orderWeights.attack;
+        let r = Math.random() * total;
+        if (r < this.orderWeights.rally) {
+          this.currentOrder = "rally";
+        } else if (r < this.orderWeights.rally + this.orderWeights.rest) {
+          this.currentOrder = "rest";
+        } else {
+          this.currentOrder = "attack";
+        }
+        this.orderTimer = 300;
+        this.incrementSkill("leader", 0.05);
+      }
+
+      if (this.currentOrder === "attack") {
+        let enemyTeam = (this.team === "blue") ? "red" : "blue";
+        let myThreat = computeTeamThreat(this.team);
+        let enemyThreat = computeTeamThreat(enemyTeam);
+        if (enemyThreat > myThreat) {
+          let enemyCastleObj = castles.find(c => c.team === enemyTeam);
+          if (enemyCastleObj) {
+            let dx = this.x - enemyCastleObj.x;
+            let dy = this.y - enemyCastleObj.y;
+            let mag = Math.hypot(dx, dy) || 1;
+            let retreatDistance = 100;
+            this.currentWaypoint = {
+              x: this.x + (dx / mag) * retreatDistance,
+              y: this.y + (dy / mag) * retreatDistance
+            };
+            this.currentValue = scoreWaypoint(this.currentWaypoint);
+            this.communicate("Retreating from large threat!");
+          }
+        }
+      }
+      
+      // Advanced leaders (>1.0) always try to control resource center
+      if (this.skills.leader > 1.0 && Math.random() < 0.1) {
+        this.moveTowardResourceControl();
+      }
+    }
+    
+    moveTowardResourceControl() {
+      const treeCenter = calculateTreeCenter();
+      const distToTreeCenter = Math.hypot(this.x - treeCenter.x, this.y - treeCenter.y);
+      
+      // If we're not already at the tree center
+      if (distToTreeCenter > 50) {
+        // Create a waypoint toward tree center with high value
+        this.currentWaypoint = {
+          x: treeCenter.x + (Math.random() - 0.5) * 40,
+          y: treeCenter.y + (Math.random() - 0.5) * 40
+        };
+        
+        // Assign extremely high value to this waypoint so it's preferred
+        this.currentValue = 100 + scoreWaypoint(this.currentWaypoint);
+        
+        // Communicate strategic intent
+        if (Math.random() < 0.3) {
+          this.communicate("Securing resource control!");
+        }
+        
+        // Broadcast to nearby units to follow
+        this.broadcast("Follow me to the resources!");
+      }
+    }
+
+    updateFighter() {
+      const inAttackMode = teamAttackMode[this.team] || false;
+      let enemy = null;
+      let closestDistance = Infinity;
+
+      if (inAttackMode || this.personality === "aggressive") {
+        units.forEach(u => {
+          if (u !== this && u.team !== this.team) {
+            let d = Math.hypot(u.x - this.x, u.y - this.y);
+            if (d < closestDistance) {
+              closestDistance = d;
+              enemy = u;
+            }
+          }
+        });
+      }
+
+      if (enemy) {
+        let targetAngle = Math.atan2(enemy.y - this.y, enemy.x - this.x);
+        let diff = ((targetAngle - this.angle) + Math.PI) % (2*Math.PI) - Math.PI;
+        if (this.personality === "aggressive" || inAttackMode) {
+          this.angle += diff * 0.1;
+          this.communicate("Charge!");
+        } else if (this.personality === "defensive") {
+          if (closestDistance < 60) {
+            let retreatAngle = Math.atan2(this.y - enemy.y, this.x - enemy.x);
+            let diff2 = ((retreatAngle - this.angle) + Math.PI) % (2*Math.PI) - Math.PI;
+            this.angle += diff2 * 0.1;
+            this.communicate("Defensive retreat!");
+          } else {
+            this.angle += diff * 0.05;
+            this.communicate("Hold position.");
+          }
+        } else {
+          this.angle += diff * 0.05;
+        }
+      }
+
+      if (enemy && closestDistance < 120 && (inAttackMode || this.personality === "aggressive")) {
+        if (this.fireCooldown <= 0) {
+          this.fireArrow();
+          combatStats[this.team].attacksLaunched++;
+          combatStats[this.team].lastCombatTime = performance.now();
+          this.fireCooldown = Math.floor(Math.random() * 100 + 50);
+          this.incrementSkill("fighter", 0.05);
+        } else {
+          this.fireCooldown--;
+        }
+      } else {
+        if (this.fireCooldown > 0) {
+          this.fireCooldown--;
+        }
+      }
+
+      this.arrows.forEach(arrow => arrow.update());
+      this.arrows = this.arrows.filter(arrow => arrow.isInBounds() && !arrow.hit);
+    }
+
+    updateWorker() {
+      if (this.state === "idle") {
+        this.state = "gather";
+      }
+
+      // Check for apples to gather
+      if (this.state === "gather" && this.carrying === 0 && !this.leftHand && !this.rightHand) {
+        let closestApple = null;
+        let closestDistance = Infinity;
+        
+        apples.forEach(apple => {
+          const distance = Math.hypot(this.x - apple.x, this.y - apple.y);
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestApple = apple;
+          }
+        });
+        
+        if (closestApple && closestDistance < 15) {
+          // Pick up the apple with preferred hand (right first)
+          const appleIndex = apples.indexOf(closestApple);
+          if (appleIndex !== -1) {
+            // Store the apple data
+            const apple = apples[appleIndex];
+            
+            if (!this.rightHand) {
+              this.rightHand = {
+                type: "apple",
+                value: 10,
+                originalObject: apple
+              };
+            } else if (!this.leftHand) {
+              this.leftHand = {
+                type: "apple",
+                value: 10,
+                originalObject: apple
+              };
+            }
+            
+            apples.splice(appleIndex, 1);
+            this.carrying = 10;
+            this.state = "return";
+            this.communicate("Got an apple!");
+          }
+        }
+      }
+      else if (this.state === "return") {
+        let nearest = getNearestCastle(this.team, this.x, this.y);
+        if (nearest.castle) {
+          let d = Math.hypot(this.x - nearest.castle.x, this.y - nearest.castle.y);
+          if (d < 15) {
+            // Deposit the carried food
+            const foodAmount = this.carrying;
+            nearest.castle.food += foodAmount;
+            
+            // Trigger visual food deposit effect
+            nearest.castle.addFoodVisual(foodAmount);
+            
+            // Clear inventory
+            this.carrying = 0;
+            this.rightHand = null;
+            this.leftHand = null;
+            
+            // Show deposit animation above unit
+            this.communicate("+" + foodAmount + " food!");
+            
+            this.state = "gather";
+            this.incrementSkill("worker", 0.05);
+          }
+        } else {
+          this.state = "build";
+          this.communicate("No castle found, let's build!");
+        }
+      } 
+      else if (this.state === "build") {
+        if (this.carrying < 50) {
+          this.state = "gather";
+          this.communicate("Not enough food, gather more!");
+        } else {
+          this.buildTimer--;
+          this.communicate("Building in progress...");
+          if (this.buildTimer <= 0 && this.carrying >= 50) {
+            if (canBuildCastle(this.x, this.y)) {
+              this.carrying -= 50;
+              // Clear hands when building a castle
+              this.rightHand = null;
+              this.leftHand = null;
+              
+              castles.push(new Castle(this.x, this.y, this.team));
+              this.buildTimer = 200;
+              this.state = "gather";
+              this.communicate("Castle built!");
+              this.incrementSkill("worker", 0.2);
+            } else {
+              this.state = "gather";
+              this.communicate("Too close to another castle, gather again!");
+            }
+          }
+        }
+      }
+    }
+
+    fireArrow() {
+      const arrowSpeed = 5;
+      const arrow = new Arrow(this.x, this.y, this.angle, arrowSpeed, this.color, this.team);
+      this.arrows.push(arrow);
+    }
+
+    draw() {
+      // 1) Translate/rotate so we can draw from this unit's frame of reference
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle);
+
+      // --------------------------------------------------
+      // (A) VISION CONE - faint fill + faint outline
+      // --------------------------------------------------
+      ctx.save();
+
+      // Faint fill
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      // 60° total: from -30° to +30°, radius ~80
+      ctx.arc(0, 0, 80, -Math.PI/6, Math.PI/6);
+      ctx.closePath();
+
+      ctx.globalAlpha = 0.1;       // faint fill
+      ctx.fillStyle = this.color;
+      ctx.fill();
+
+      // Faint outline
+      ctx.globalAlpha = 0.3;
+      ctx.strokeStyle = this.color;
+      ctx.stroke();
+
+      ctx.restore();
+      // --------------------------------------------------
+
+      const R = this.size * 0.5;
+      ctx.fillStyle = this.color;
+      ctx.strokeStyle = this.color;
+
+      // If leader skill is high enough, outline the circle
+      if (this.skills.leader >= 1) {
+        ctx.beginPath();
+        ctx.arc(0, 0, R, 0, Math.PI * 2);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Fighter shape
+      if (this.skills.fighter >= 1) {
+        ctx.beginPath();
+        ctx.moveTo(0, -R);
+        ctx.lineTo(R, R);
+        ctx.lineTo(-R, R);
+        ctx.closePath();
+        ctx.fill();
+      } else if (this.skills.fighter > 0) {
+        ctx.beginPath();
+        ctx.moveTo(0, -R);
+        ctx.lineTo(0, R);
+        ctx.moveTo(-R, 0);
+        ctx.lineTo(R, 0);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Worker shape
+      if (this.skills.worker >= 1) {
+        const hexRadius = R * 0.6;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const angle = (Math.PI / 3) * i;
+          const px = hexRadius * Math.cos(angle);
+          const py = hexRadius * Math.sin(angle);
+          if (i === 0) {
+            ctx.moveTo(px, py);
+          } else {
+            ctx.lineTo(px, py);
+          }
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Trainer skill shape (small gold circle above)
+      if (this.skills.trainer >= 1) {
+        ctx.beginPath();
+        ctx.arc(0, -R*0.9, R*0.2, 0, Math.PI*2);
+        ctx.fillStyle = "#FFD700";
+        ctx.fill();
+        ctx.fillStyle = this.color;
+      }
+
+      // If zero total skill, just a square
+      let totalSkill = this.skills.fighter + this.skills.worker + this.skills.leader + this.skills.trainer;
+      if (totalSkill === 0) {
+        ctx.beginPath();
+        ctx.rect(-R, -R, 2*R, 2*R);
+        ctx.fill();
+      }
+
+      // Arms/hands with inventory
+      let handOffset = 5;
+      let handCenterXRight = R + handOffset;
+      let handCenterXLeft  = -R - handOffset;
+      let handRadius = R * 0.25;
+
+      // Draw right hand/arm
+      ctx.beginPath();
+      ctx.arc(handCenterXRight, 0, handRadius, 0, Math.PI*2);
+      ctx.fill();
+      
+      // Draw left hand/arm
+      ctx.beginPath();
+      ctx.arc(handCenterXLeft, 0, handRadius, 0, Math.PI*2);
+      ctx.fill();
+      
+      // Draw items held in hands
+      if (this.rightHand) {
+        if (this.rightHand.type === "apple") {
+          // Draw apple in right hand
+          ctx.beginPath();
+          ctx.arc(handCenterXRight + handRadius * 1.5, 0, handRadius * 1.2, 0, Math.PI*2);
+          ctx.fillStyle = "red";
+          ctx.fill();
+          
+          // Small stem
+          ctx.beginPath();
+          ctx.moveTo(handCenterXRight + handRadius * 1.5, -handRadius * 1.2);
+          ctx.lineTo(handCenterXRight + handRadius * 1.5, -handRadius * 1.7);
+          ctx.strokeStyle = "#8B4513";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // Reset fill color
+          ctx.fillStyle = this.color;
+        }
+      }
+      
+      if (this.leftHand) {
+        if (this.leftHand.type === "apple") {
+          // Draw apple in left hand
+          ctx.beginPath();
+          ctx.arc(handCenterXLeft - handRadius * 1.5, 0, handRadius * 1.2, 0, Math.PI*2);
+          ctx.fillStyle = "red";
+          ctx.fill();
+          
+          // Small stem
+          ctx.beginPath();
+          ctx.moveTo(handCenterXLeft - handRadius * 1.5, -handRadius * 1.2);
+          ctx.lineTo(handCenterXLeft - handRadius * 1.5, -handRadius * 1.7);
+          ctx.strokeStyle = "#8B4513";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // Reset fill color
+          ctx.fillStyle = this.color;
+        }
+      }
+
+      ctx.restore(); // revert translation/rotation to normal
+
+      // Possibly show a "resting" bubble
+      if (this.isResting) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - this.size - 5, 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#FFFF00";
+        ctx.fill();
+      }
+
+      // Draw lines to current/alt waypoints
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y); 
+      ctx.lineTo(this.currentWaypoint.x, this.currentWaypoint.y);
+      ctx.strokeStyle = "green";
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.altWaypoint.x, this.altWaypoint.y);
+      ctx.strokeStyle = "yellow";
+      ctx.stroke();
+      ctx.restore();
+
+      // Text info about the unit
+      ctx.fillStyle = "#fff";
+      ctx.font = "10px serif";
+      ctx.fillText(
+        this.randomName + " (F:" + this.skills.fighter.toFixed(1) + 
+        " W:" + this.skills.worker.toFixed(1) + 
+        " L:" + this.skills.leader.toFixed(1) +
+        " T:" + this.skills.trainer.toFixed(1) + ")",
+        this.x - this.size, 
+        this.y - this.size - 20
+      );
+      ctx.fillText("HP: " + this.hp, this.x - this.size, this.y - this.size - 10);
+
+      // Speech bubble / message
+      if (this.messageTimer > 0) {
+        ctx.fillStyle = "#ff0";
+        ctx.font = "10px serif";
+        ctx.fillText(this.message, this.x - this.size, this.y - this.size - 30);
+        this.messageTimer--;
+      }
+    }
+  }
+
+  // ========================================================
+  // 7) CASTLE CLASS
+  // ========================================================
+  class Castle {
+    constructor(x, y, team, food = 0, special = false, townName = "") {
+      this.x = x;
+      this.y = y;
+      this.team = team;
+      this.colorChannels = getTeamColorChannels(team);
+      this.color = channelsToCSS(this.colorChannels);
+
+      this.food = food;  
+      this.foodVisuals = []; // For visual food deposit effects
+      this.spawnTimer = 300;
+      this.hp = 200;
+      this.special = special;
+      this.townName = townName;
+    }
+    
+    // New method to handle visual food deposits
+    addFoodVisual(amount) {
+      for (let i = 0; i < Math.min(5, amount/2); i++) {
+        this.foodVisuals.push({
+          x: this.x + (Math.random() - 0.5) * 30,
+          y: this.y + (Math.random() - 0.5) * 30,
+          size: 4 + Math.random() * 4,
+          opacity: 1.0,
+          color: 'red',
+          growTimer: 60 // Frames before disappearing
+        });
+      }
+    }
+    
+    calculateUnitWeights() {
+      const stats = combatStats[this.team];
+      const currentTime = performance.now();
+      const timeSinceLastCombat = (currentTime - stats.lastCombatTime) / 1000;
+      let leaderWeight = 0.1;
+      let fighterWeight = 0.5;
+      let workerWeight = 0.4;
+
+      fighterWeight *= stats.knightEffectiveness;
+      workerWeight *= stats.workerEffectiveness;
+
+      if (this.food > 200) {
+        leaderWeight *= 2;
+      }
+      if (timeSinceLastCombat < 10) {
+        fighterWeight *= 1.5;
+        workerWeight *= 0.5;
+      } else if (timeSinceLastCombat > 30) {
+        workerWeight *= 1.5;
+        fighterWeight *= 0.8;
+      }
+      return { leader: leaderWeight, fighter: fighterWeight, worker: workerWeight };
+    }
+    
+    update() {
+      this.spawnTimer--;
+
+      let currentArmySize = units.filter(u => u.team === this.team).length;
+      let growthFactor = Math.max(0, (UNIT_CAP - currentArmySize) / UNIT_CAP);
+      let weights = this.calculateUnitWeights();
+      weights.leader *= growthFactor;
+      weights.fighter *= growthFactor;
+      weights.worker *= growthFactor;
+
+      let workerCount = units.filter(u => u.team === this.team && u.skills.worker > 0.5).length;
+      if (workerCount >= 5) {
+        weights.worker = 0;
+      }
+
+      let totalWeight = weights.leader + weights.fighter + weights.worker;
+      let norm = {
+        leader: weights.leader / totalWeight,
+        fighter: weights.fighter / totalWeight,
+        worker: weights.worker / totalWeight
+      };
+
+      if (this.spawnTimer <= 0) {
+        let r = Math.random();
+        let chosenSkill = null;
+        if (r < norm.leader && this.food >= 100) {
+          chosenSkill = "leader";
+          this.food -= 100;
+        } else if (r < norm.leader + norm.fighter && this.food >= 50) {
+          chosenSkill = "fighter";
+          this.food -= 50;
+        } else if (this.food >= 25) {
+          chosenSkill = "worker";
+          this.food -= 25;
+        }
+
+        if (!chosenSkill && Math.random() < 0.25) {
+          chosenSkill = "none";
+        }
+
+        let skillSet = { fighter: 0, worker: 0, leader: 0, trainer: 0 };
+        if (chosenSkill === "leader") {
+          skillSet.leader = 1.0;
+        } else if (chosenSkill === "fighter") {
+          skillSet.fighter = 1.0;
+        } else if (chosenSkill === "worker") {
+          skillSet.worker = 1.0;
+        }
+        
+        if (chosenSkill) {
+          let newUnit = new Unit(
+            this.x + (Math.random()-0.5)*20,
+            this.y + (Math.random()-0.5)*20,
+            Math.random()*10+15,
+            this.team,
+            skillSet
+          );
+          units.push(newUnit);
+        }
+
+        this.spawnTimer = 300;
+      }
+    }
+    
+    draw() {
+      // Update food visuals
+      for (let i = this.foodVisuals.length - 1; i >= 0; i--) {
+        const visual = this.foodVisuals[i];
+        visual.growTimer--;
+        visual.y -= 0.2; // Float upward
+        visual.opacity = visual.growTimer / 60;
+        
+        if (visual.growTimer <= 0) {
+          this.foodVisuals.splice(i, 1);
+        }
+      }
+      
+      // Draw castle base
+      ctx.beginPath();
+      ctx.rect(this.x - 20, this.y - 20, 40, 40);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.stroke();
+      
+      // Draw food pile if has significant food
+      if (this.food > 20) {
+        const foodPileHeight = Math.min(15, this.food / 20);
+        ctx.beginPath();
+        ctx.moveTo(this.x - 15, this.y + 20);
+        ctx.lineTo(this.x - 5, this.y + 20 - foodPileHeight);
+        ctx.lineTo(this.x + 5, this.y + 20 - foodPileHeight);
+        ctx.lineTo(this.x + 15, this.y + 20);
+        ctx.fillStyle = "#DAA520"; // Golden food pile
+        ctx.fill();
+      }
+
+      // Draw floating food visuals
+      this.foodVisuals.forEach(visual => {
+        ctx.beginPath();
+        ctx.arc(visual.x, visual.y, visual.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 0, 0, ${visual.opacity})`;
+        ctx.fill();
+      });
+
+      // Text info
+      ctx.fillStyle = "#fff";
+      ctx.font = "12px serif";
+      ctx.fillText("Food: " + this.food, this.x - 30, this.y - 30);
+      ctx.fillText("HP: " + this.hp, this.x - 30, this.y - 15);
+      if (this.special) {
+        ctx.fillText(this.townName, this.x - 30, this.y - 45);
+      }
+
+      // Protection radius
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, BUILD_PROTECTION_RADIUS, 0, Math.PI * 2);
+      ctx.strokeStyle = this.color;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+    }
+  }
+
+  // ========================================================
+  // 8) RESOURCE NODE => TREE (spawns apples)
+  // ========================================================
+  class ResourceNode {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.appleSpawnTimer = 0;
+      this.treeSize = 15;
+      this.trunkHeight = 10;
+      this.readyToDrop = false;
+      this.shakeAmount = 0;
+      this.appleGrowthStage = 0; // 0 to 5, with 5 being ready to drop
+    }
+
+    update() {
+      this.appleSpawnTimer++;
+      
+      // Apple growth stages (visual cue that apple is coming)
+      if (this.appleSpawnTimer % (60 * 12) === 0) { // Every 12 seconds, advance growth
+        this.appleGrowthStage = Math.min(5, this.appleGrowthStage + 1);
+      }
+      
+      // Shake when apple is ready to drop
+      if (this.appleGrowthStage >= 5) {
+        this.readyToDrop = true;
+        this.shakeAmount = Math.sin(this.appleSpawnTimer * 0.1) * 0.5;
+      } else {
+        this.shakeAmount = 0;
+      }
+      
+      // Drop apple after full growth
+      if (this.appleSpawnTimer >= 60 * 60) { // Every 60 seconds
+        // Add random offset so apple doesn't always land in same spot
+        const offsetX = (Math.random() - 0.5) * 20;
+        apples.push(new Apple(this.x + offsetX, this.y + 15));
+        this.appleSpawnTimer = 0;
+        this.appleGrowthStage = 0;
+        this.readyToDrop = false;
+      }
+    }
+
+    draw() {
+      // Draw trunk
+      ctx.beginPath();
+      ctx.rect(this.x - 5, this.y, 10, this.trunkHeight);
+      ctx.fillStyle = "#8B4513";
+      ctx.fill();
+      
+      // Draw tree foliage (with slight shake if ready to drop)
+      ctx.save();
+      ctx.translate(this.x + this.shakeAmount, this.y - 8);
+      
+      ctx.beginPath();
+      ctx.arc(0, 0, this.treeSize, 0, Math.PI * 2);
+      ctx.fillStyle = "#228B22";
+      ctx.fill();
+      
+      // Draw apple growth stages
+      if (this.appleGrowthStage > 0) {
+        const appleSize = this.appleGrowthStage * 1.5;
+        const applePosY = this.treeSize * 0.5;
+        
+        ctx.beginPath();
+        ctx.arc(0, applePosY, appleSize, 0, Math.PI * 2);
+        
+        // Color changes from green to red as it grows
+        const redComponent = Math.min(255, 100 + (this.appleGrowthStage * 35));
+        const greenComponent = Math.max(0, 150 - (this.appleGrowthStage * 20));
+        ctx.fillStyle = `rgb(${redComponent}, ${greenComponent}, 0)`;
+        ctx.fill();
+        
+        // Draw stem if apple is getting bigger
+        if (this.appleGrowthStage > 2) {
+          ctx.beginPath();
+          ctx.moveTo(0, applePosY - appleSize);
+          ctx.lineTo(0, applePosY - appleSize - 2);
+          ctx.strokeStyle = "#8B4513";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+      
+      ctx.restore();
+    }
+  }
+
+  // ========================================================
+  // 9) APPLE CLASS (30s decay)
+  // ========================================================
+  class Apple {
+    constructor(x, y) {
+      this.id = Math.random().toString(36).substr(2, 9); // Unique ID for tracking
+      this.x = x;
+      this.y = y;
+      this.life = 30 * 60; // 30s at 60fps
+      this.radius = 9;
+      this.isPickedUp = false;
+      this.heldBy = null;
+    }
+    update() {
+      this.life--;
+      
+      // If held by someone, update position to follow
+      if (this.heldBy) {
+        // Position is handled by the unit's draw function
+        // This is just a placeholder in case we need to do something
+        // with held apples during update
+      }
+    }
+    isExpired() {
+      return this.life <= 0;
+    }
+    pickup(unit) {
+      this.isPickedUp = true;
+      this.heldBy = unit;
+    }
+    drop() {
+      this.isPickedUp = false;
+      this.heldBy = null;
+    }
+    draw() {
+      // Only draw if not being held
+      if (!this.isPickedUp) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "red";
+        ctx.fill();
+        
+        // Small stem
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y - this.radius);
+        ctx.lineTo(this.x, this.y - this.radius - 4);
+        ctx.strokeStyle = "#8B4513";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        ctx.fillStyle = "white";
+        ctx.font = "12px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Apple", this.x, this.y + this.radius + 12);
+      }
+    }
+  }
+
+  // ========================================================
+  // 10) ANIMAL CLASS
+  // ========================================================
+  class Animal {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.hp = 50;
+      this.speed = Math.random() * 1 + 0.5;
+      this.angle = Math.random() * Math.PI * 2;
+    }
+    update() {
+      const neighborRadius = 50;
+      let avgX = 0, avgY = 0, count = 0;
+      animals.forEach(other => {
+        if (other !== this) {
+          let d = Math.hypot(other.x - this.x, other.y - this.y);
+          if (d < neighborRadius) {
+            avgX += other.x;
+            avgY += other.y;
+            count++;
+          }
+        }
+      });
+      if (count > 0) {
+        avgX /= count;
+        avgY /= count;
+        let desiredAngle = Math.atan2(avgY - this.y, avgX - this.x);
+        let diffAngle = desiredAngle - this.angle;
+        diffAngle = ((diffAngle + Math.PI) % (2 * Math.PI)) - Math.PI;
+        this.angle += diffAngle * 0.05;
+      }
+      this.angle += (Math.random() - 0.5) * 0.1;
+      this.x += Math.cos(this.angle) * this.speed;
+      this.y += Math.sin(this.angle) * this.speed;
+      if (this.x < 0) this.x = 0;
+      if (this.x > canvas.width) this.x = canvas.width;
+      if (this.y < 0) this.y = 0;
+      if (this.y > canvas.height) this.y = canvas.height;
+    }
+    draw() {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = "white";
+      ctx.fill();
+      ctx.fillStyle = "#000";
+      ctx.font = "8px serif";
+      ctx.fillText("Animal", this.x - 15, this.y - 10);
+    }
+  }
+
+  // Calculate center of all trees
+  function calculateTreeCenter() {
+    if (resourceNodes.length === 0) return { x: canvas.width/2, y: canvas.height/2 };
+    
+    let totalX = 0, totalY = 0;
+    resourceNodes.forEach(tree => {
+      totalX += tree.x;
+      totalY += tree.y;
+    });
+    
+    return {
+      x: totalX / resourceNodes.length,
+      y: totalY / resourceNodes.length
+    };
+  }
+
+  // ========================================================
+  // 11) CREATE TREES, CASTLES, UNITS, ETC.
+  // ========================================================
+  function createDeterministicTrees(count = 5, radius = 200) {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    for (let i = 0; i < count; i++) {
+      const angle = (2 * Math.PI * i) / count;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      resourceNodes.push(new ResourceNode(x, y));
+    }
+  }
+
+  let homeCastle = new Castle(100, canvas.height/2, "blue", 100, true, "Camelot");
+  castles.push(homeCastle);
+  let enemyCastle = new Castle(canvas.width - 100, canvas.height/2, "red", 100, true, "Mordor");
+  castles.push(enemyCastle);
+
+  let blueLeader = new Unit(130, canvas.height/2, 40, "blue", { leader: 2, trainer: 1 });
+  units.push(blueLeader);
+  let redLeader = new Unit(canvas.width - 130, canvas.height/2, 40, "red", { leader: 2, trainer: 1 });
+  units.push(redLeader);
+
+  let blueWorker = new Unit(160, canvas.height/2, 35, "blue", { worker: 1 });
+  units.push(blueWorker);
+  let redWorker = new Unit(canvas.width - 160, canvas.height/2, 35, "red", { worker: 1 });
+  units.push(redWorker);
+
+  createDeterministicTrees(5, 200);
+
+  for (let i = 0; i < 5; i++){
+    let x = Math.random() * canvas.width;
+    let y = Math.random() * canvas.height;
+    animals.push(new Animal(x, y));
+  }
+
+  // ========================================================
+  // 12) COLLISION DETECTION
+  // ========================================================
+  function checkCollisions() {
+    const unitsToRemove = new Set();
+
+    units.forEach(shooter => {
+      if (shooter.skills.fighter > 0) {
+        shooter.arrows.forEach(arrow => {
+          units.forEach(target => {
+            if (target.team !== shooter.team) {
+              const dx = arrow.x - target.x;
+              const dy = arrow.y - target.y;
+              if (Math.hypot(dx, dy) < target.size * 0.5) {
+                arrow.hit = true;
+                target.hp -= 50;
+                combatStats[shooter.team].damageDealt += 50;
+                combatStats[shooter.team].lastCombatTime = performance.now();
+                shooter.incrementSkill("fighter", 0.02);
+
+                if (target.hp <= 0) {
+                  unitsToRemove.add(target);
+                  combatStats[target.team].unitsLost++;
+                  combatStats[target.team].lastCombatTime = performance.now();
+                  combatStats[shooter.team].unitsKilled = (combatStats[shooter.team].unitsKilled || 0) + 1;
+                  if (target.skills.fighter > 0.5) {
+                    combatStats[target.team].knightEffectiveness *= 0.95;
+                    combatStats[shooter.team].knightEffectiveness *= 1.05;
+                  } else if (target.skills.worker > 0.5) {
+                    combatStats[target.team].workerEffectiveness *= 0.95;
+                  }
+                  badMemories.push({ x: target.x, y: target.y, intensity: 2.0 });
+                }
+              }
+            }
+          });
+        });
+      }
+    });
+    units = units.filter(unit => !unitsToRemove.has(unit));
+
+    const castlesToRemove = new Set();
+    units.forEach(unit => {
+      if (unit.skills.fighter > 0) {
+        unit.arrows.forEach(arrow => {
+          castles.forEach(castle => {
+            if (arrow.team !== castle.team) {
+              const dx = arrow.x - castle.x;
+              const dy = arrow.y - castle.y;
+              if (Math.hypot(dx, dy) < 20) {
+                arrow.hit = true;
+                castle.hp -= 50;
+                if (castle.hp <= 0) {
+                  castlesToRemove.add(castle);
+                  badMemories.push({ x: castle.x, y: castle.y, intensity: 3.0 });
+                }
+              }
+            }
+          });
+        });
+      }
+    });
+    castles = castles.filter(castle => !castlesToRemove.has(castle));
+
+    units.forEach(unit => {
+      if (unit.skills.fighter > 0) {
+        unit.arrows = unit.arrows.filter(arrow => arrow.isInBounds() && !arrow.hit);
+      }
+    });
+  }
+
+  // ========================================================
+  // 13) ENHANCED STATS CALCULATION
+  // ========================================================
+  function calculateAverageSkills(team) {
+    const teamUnits = units.filter(u => u.team === team);
+    if (teamUnits.length === 0) return { fighter: 0, worker: 0, leader: 0, trainer: 0 };
+    
+    let totals = { fighter: 0, worker: 0, leader: 0, trainer: 0 };
+    teamUnits.forEach(unit => {
+      totals.fighter += unit.skills.fighter;
+      totals.worker += unit.skills.worker;
+      totals.leader += unit.skills.leader;
+      totals.trainer += unit.skills.trainer;
+    });
+    
+    return {
+      fighter: totals.fighter / teamUnits.length,
+      worker: totals.worker / teamUnits.length, 
+      leader: totals.leader / teamUnits.length,
+      trainer: totals.trainer / teamUnits.length
+    };
+  }
+
+  function formatTime(ms) {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    return `${hours.toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+  }
+
+  function updateStatsDisplay() {
+    const leftStatsPanel = document.getElementById('leftStats');
+    const rightStatsPanel = document.getElementById('rightStats');
+    
+    // Calculate time elapsed
+    const elapsedMs = Date.now() - gameStats.startTime;
+    const timeStr = formatTime(elapsedMs);
+    
+    // Calculate FPS
+    const now = Date.now();
+    gameStats.frameCount++;
+    
+    if (now - gameStats.lastFpsUpdate > 1000) {
+      gameStats.fps = Math.round(gameStats.frameCount * 1000 / (now - gameStats.lastFpsUpdate));
+      gameStats.frameCount = 0;
+      gameStats.lastFpsUpdate = now;
+    }
+    
+    // Team stats
+    const blueCount = units.filter(u => u.team === "blue").length;
+    const redCount = units.filter(u => u.team === "red").length;
+    
+    // Resource stats
+    const blueApples = units.filter(u => u.team === "blue").reduce((sum, u) => sum + u.carrying, 0);
+    const redApples = units.filter(u => u.team === "red").reduce((sum, u) => sum + u.carrying, 0);
+    
+    // Average skills
+    const blueAvgSkills = calculateAverageSkills("blue");
+    const redAvgSkills = calculateAverageSkills("red");
+    
+    // Leadership stats
+    const blueLeaderCount = units.filter(u => u.team === "blue" && u.skills.leader > 1.0).length;
+    const redLeaderCount = units.filter(u => u.team === "red" && u.skills.leader > 1.0).length;
+    
+    // Resource control metrics - how many units are near the tree center
+    const treeCenter = calculateTreeCenter();
+    const nearCenterRadius = 100;
+    const blueUnitsNearCenter = units.filter(u => 
+      u.team === "blue" && Math.hypot(u.x - treeCenter.x, u.y - treeCenter.y) < nearCenterRadius
+    ).length;
+    const redUnitsNearCenter = units.filter(u => 
+      u.team === "red" && Math.hypot(u.x - treeCenter.x, u.y - treeCenter.y) < nearCenterRadius
+    ).length;
+    
+    // Update panels
+    leftStatsPanel.innerHTML = `
+      <h3>Blue Team</h3>
+      <div>Game Time: <span class="stat-value">${timeStr}</span> | FPS: <span class="stat-value">${gameStats.fps}</span></div>
+      <div>Units: <span class="stat-value">${blueCount}</span></div>
+      <div>Resources: <span class="stat-value">${blueApples}</span> apples carried</div>
+      <div>Strategic Leaders: <span class="stat-value">${blueLeaderCount}</span></div>
+      <div>Resource Control: <span class="stat-value">${blueUnitsNearCenter}/${blueCount}</span> units</div>
+      <div>Combat Stats:</div>
+      <div>- Attacks: <span class="stat-value">${combatStats.blue.attacksLaunched}</span></div>
+      <div>- Kills: <span class="stat-value">${combatStats.blue.unitsKilled || 0}</span></div>
+      <div>- Deaths: <span class="stat-value">${combatStats.blue.unitsLost}</span></div>
+      <div>- Damage: <span class="stat-value">${combatStats.blue.damageDealt}</span></div>
+      <div>Avg. Skills:</div>
+      <div>- Fighter: <span class="stat-value">${blueAvgSkills.fighter.toFixed(2)}</span></div>
+      <div>- Worker: <span class="stat-value">${blueAvgSkills.worker.toFixed(2)}</span></div>
+      <div>- Leader: <span class="stat-value">${blueAvgSkills.leader.toFixed(2)}</span></div>
+      <div>- Trainer: <span class="stat-value">${blueAvgSkills.trainer.toFixed(2)}</span></div>
+    `;
+    
+    rightStatsPanel.innerHTML = `
+      <h3>Red Team</h3>
+      <div>Apples Available: <span class="stat-value">${apples.length}</span></div>
+      <div>Units: <span class="stat-value">${redCount}</span></div>
+      <div>Resources: <span class="stat-value">${redApples}</span> apples carried</div>
+      <div>Strategic Leaders: <span class="stat-value">${redLeaderCount}</span></div>
+      <div>Resource Control: <span class="stat-value">${redUnitsNearCenter}/${redCount}</span> units</div>
+      <div>Combat Stats:</div>
+      <div>- Attacks: <span class="stat-value">${combatStats.red.attacksLaunched}</span></div>
+      <div>- Kills: <span class="stat-value">${combatStats.red.unitsKilled || 0}</span></div>
+      <div>- Deaths: <span class="stat-value">${combatStats.red.unitsLost}</span></div>
+      <div>- Damage: <span class="stat-value">${combatStats.red.damageDealt}</span></div>
+      <div>Avg. Skills:</div>
+      <div>- Fighter: <span class="stat-value">${redAvgSkills.fighter.toFixed(2)}</span></div>
+      <div>- Worker: <span class="stat-value">${redAvgSkills.worker.toFixed(2)}</span></div>
+      <div>- Leader: <span class="stat-value">${redAvgSkills.leader.toFixed(2)}</span></div>
+      <div>- Trainer: <span class="stat-value">${redAvgSkills.trainer.toFixed(2)}</span></div>
+    `;
+  }
+
+  // ========================================================
+  // 14) MAIN ANIMATION LOOP
+  // ========================================================
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    badMemories.forEach(mem => {
+      mem.intensity *= 0.999;
+    });
+    badMemories = badMemories.filter(mem => mem.intensity > 0.05);
+
+    castles.forEach(castle => castle.update());
+    animals.forEach(animal => animal.update());
+    units.forEach(unit => unit.update());
+
+    resourceNodes.forEach(tree => tree.update());
+    apples.forEach(apple => apple.update());
+    apples = apples.filter(a => !a.isExpired());
+
+    checkCollisions();
+
+    // Draw everything
+    resourceNodes.forEach(tree => tree.draw());
+    apples.forEach(apple => apple.draw());
+    animals.forEach(animal => animal.draw());
+    castles.forEach(castle => castle.draw());
+    units.forEach(unit => unit.draw());
+    
+    // Draw the strategic resource center indicator (only visible to advanced leaders)
+    const treeCenter = calculateTreeCenter();
+    ctx.beginPath();
+    ctx.arc(treeCenter.x, treeCenter.y, 20, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255, 215, 0, 0.4)"; // Gold color
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Pulsing effect
+    const pulseSize = 30 + Math.sin(Date.now() * 0.003) * 10;
+    ctx.beginPath();
+    ctx.arc(treeCenter.x, treeCenter.y, pulseSize, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255, 215, 0, 0.2)";
+    ctx.stroke();
+
+    // Update statistics display
+    updateStatsDisplay();
+
+    requestAnimationFrame(animate);
+  }
+
+  // Start the animation
+  animate();
+</script>
+</body>
+</html>
