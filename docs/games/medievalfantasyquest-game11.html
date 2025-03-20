@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Medieval Citybuilder and RTS</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: #333;
+      overflow: hidden;
+      font-family: 'Times New Roman', serif;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="battleCanvas"></canvas>
+  <script>
+    // --- Canvas Setup ---
+    const canvas = document.getElementById("battleCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+    
+    // --- Global Variables ---
+    let units = []; 
+    let castles = [];
+    let resourceNodes = [];
+    let animals = [];
+
+    // NEW: Replaces the old “dangerZones” mechanic
+    // We'll store a list of "bad memories" when a valued unit dies
+    let badMemories = [];
+
+    const teamLords = {
+      "blue": [],
+      "red": []
+    };
+    
+    const MIN_ARMY_SIZE = {
+      "blue": 5,
+      "red": 5
+    };
+    
+    const UNIT_CAP = 50;
+    const teamAttackMode = {
+      "blue": false,
+      "red": false
+    };
+    
+    const combatStats = {
+      "blue": {
+        attacksLaunched: 0,
+        unitsLost: 0,
+        unitsKilled: 0,
+        damageDealt: 0,
+        lastCombatTime: 0,
+        knightEffectiveness: 1.0,
+        workerEffectiveness: 1.0
+      },
+      "red": {
+        attacksLaunched: 0,
+        unitsLost: 0,
+        unitsKilled: 0,
+        damageDealt: 0,
+        lastCombatTime: 0,
+        knightEffectiveness: 1.0,
+        workerEffectiveness: 1.0
+      }
+    };
+    
+    let unitIdCounter = 0;
+    const randomNames = [
+      "Arthur","Lancelot","Gawain","Percival","Galahad","Tristan","Guinevere","Merlin","Morgana","Elaine"
+    ];
+    
+    const BUILD_PROTECTION_RADIUS = 60; // for castles
+
+    // =========================
+    //    NEW: Bad Memories
+    // =========================
+    // If a valued unit dies at (x, y), we add a memory with some intensity
+    // We can later reduce or fade them over time if needed, or keep them indefinite.
+    
+    // We'll store them as an object { x, y, intensity }
+    // Then in `scoreWaypoint`, we add negative cost if the waypoint is close to these locations.
+
+    // =========== Waypoint / Scoring Helpers ===========
+
+    // Generate a random waypoint near (x, y) within some range
+    function generateRandomWaypoint(x, y, range = 150) {
+      const angle = Math.random() * 2 * Math.PI;
+      const dist = Math.random() * range;
+      return {
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist
+      };
+    }
+
+    // Score a waypoint based on resource proximity (+) plus negative cost for “bad memories”
+    function scoreWaypoint(waypoint) {
+      let resourceBenefit = 0;
+      let memoryCost = 0;
+
+      // Resource benefit: the closer to resource nodes, the bigger the benefit
+      resourceNodes.forEach(node => {
+        const d = Math.hypot(node.x - waypoint.x, node.y - waypoint.y);
+        if (d < 300) {
+          resourceBenefit += (300 - d) * 0.05;
+        }
+      });
+
+      // Negative cost for being near places with bad memories
+      // e.g. If a memory has intensity "m", and the waypoint is within 200 distance, we do cost += ...
+      badMemories.forEach(mem => {
+        const d = Math.hypot(mem.x - waypoint.x, mem.y - waypoint.y);
+        if (d < 200) {
+          // The closer to the memory, the bigger the cost
+          // Weighted by mem.intensity
+          memoryCost += mem.intensity * (200 - d) * 0.02;
+        }
+      });
+
+      return resourceBenefit - memoryCost;
+    }
+
+    // Keep the same angle adjustments for edges
+    function adjustAngleForEdges(x, y, angle, speed) {
+      const margin = 50;
+      let avoidX = 0, avoidY = 0;
+      if (x < margin) {
+        avoidX = (margin - x) / margin;
+      } else if (x > canvas.width - margin) {
+        avoidX = - (x - (canvas.width - margin)) / margin;
+      }
+      if (y < margin) {
+        avoidY = (margin - y) / margin;
+      } else if (y > canvas.height - margin) {
+        avoidY = - (y - (canvas.height - margin)) / margin;
+      }
+      if (avoidX !== 0 || avoidY !== 0) {
+        let avoidAngle = Math.atan2(avoidY, avoidX);
+        angle += 0.3 * ((((avoidAngle + Math.PI) % (2 * Math.PI)) - angle));
+      }
+      return angle;
+    }
+
+    // Slight center bias
+    function addCenterBias(unit) {
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const centerAngle = Math.atan2(centerY - unit.y, centerX - unit.x);
+      let diffCenter = ((centerAngle - unit.angle + Math.PI) % (2 * Math.PI)) - Math.PI;
+      unit.angle += diffCenter * 0.01;
+      return unit.angle;
+    }
+
+    // Other Helper Functions
+    function getArmySize(team) {
+      return units.filter(unit => unit.team === team).length;
+    }
+    
+    function getTeamComposition(team) {
+      const composition = { Knight: 0, Swordsman: 0, Worker: 0 };
+      units.forEach(unit => {
+        if (unit.team === team) {
+          composition[unit.role] = (composition[unit.role] || 0) + 1;
+        }
+      });
+      return composition;
+    }
+    
+    function computeTeamThreat(team) {
+      const comp = getTeamComposition(team);
+      return (comp.Knight * 1.5) + (comp.Swordsman * 1.0) + (comp.Worker * 0.5);
+    }
+
+    // We'll remove references to "dangerZones" in angle adjustments – no longer needed
+
+    function adjustAngleForEnemies(x, y, angle, speed, selfTeam) {
+      let newAngle = angle;
+      let avoidAngles = [];
+      units.forEach(unit => {
+        if (unit.team !== selfTeam && unit.role === "Swordsman") {
+          let d = Math.hypot(unit.x - x, unit.y - y);
+          if (d < 150) {
+            let awayAngle = Math.atan2(y - unit.y, x - unit.x);
+            avoidAngles.push(awayAngle);
+          }
+        }
+      });
+      if (avoidAngles.length > 0) {
+        let sumX = 0, sumY = 0;
+        avoidAngles.forEach(a => {
+          sumX += Math.cos(a);
+          sumY += Math.sin(a);
+        });
+        let avgAngle = Math.atan2(sumY, sumX);
+        newAngle = newAngle + 0.4 * ((((avgAngle + Math.PI) % (2 * Math.PI)) - newAngle));
+      }
+      return newAngle;
+    }
+    
+    function getNearestCastle(team, x, y) {
+      let nearest = null;
+      let nearestDist = Infinity;
+      castles.forEach(castle => {
+        if (castle.team === team) {
+          let d = Math.hypot(castle.x - x, castle.y - y);
+          if (d < nearestDist) {
+            nearestDist = d;
+            nearest = castle;
+          }
+        }
+      });
+      return { castle: nearest, dist: nearestDist };
+    }
+    
+    function getNearestLeader(team, x, y, selfId = null) {
+      let nearest = null;
+      let nearestDist = Infinity;
+      teamLords[team].forEach(leader => {
+        if (leader.id !== selfId) {
+          let d = Math.hypot(leader.x - x, leader.y - y);
+          if (d < nearestDist) {
+            nearestDist = d;
+            nearest = leader;
+          }
+        }
+      });
+      return { leader: nearest, dist: nearestDist };
+    }
+
+    // Check if a castle can be built at (x, y)
+    function canBuildCastle(x, y) {
+      for (let castle of castles) {
+        let d = Math.hypot(x - castle.x, y - castle.y);
+        if (d < BUILD_PROTECTION_RADIUS) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // Arrow Class (unchanged from your original, minus references to danger zones)
+    class Arrow {
+      constructor(x, y, angle, speed, color, team) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.speed = speed;
+        this.color = color;
+        this.team = team;
+        this.radius = 2;
+        this.hit = false;
+        this.distanceTraveled = 0;
+        this.maxRange = 100;
+      }
+      update() {
+        const dx = Math.cos(this.angle) * this.speed;
+        const dy = Math.sin(this.angle) * this.speed;
+        this.x += dx;
+        this.y += dy;
+        this.distanceTraveled += Math.hypot(dx, dy);
+        if (this.distanceTraveled > this.maxRange) this.hit = true;
+      }
+      isInBounds() {
+        return this.x >= 0 && this.x <= canvas.width && this.y >= 0 && this.y <= canvas.height;
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+      }
+    }
+
+    // Separation Helper
+    function applySeparation(unit) {
+      let separationForceX = 0, separationForceY = 0;
+      const separationDistance = 40;
+      units.forEach(other => {
+        if (other.id !== unit.id) {
+          let dx = unit.x - other.x;
+          let dy = unit.y - other.y;
+          let dist = Math.hypot(dx, dy);
+          if (dist < separationDistance && dist > 0) {
+            if (!(other.id in unit.affinities)) {
+              // Randomly decide how “friendly” or “unfriendly” we are
+              unit.affinities[other.id] = Math.random() * 2 - 1;
+            }
+            let affinity = unit.affinities[other.id];
+            let multiplier = (affinity < 0 ? 1 - affinity : 1);
+            let force = (separationDistance - dist) * multiplier;
+            separationForceX += (dx / dist) * force;
+            separationForceY += (dy / dist) * force;
+          }
+        }
+      });
+      unit.x += separationForceX * 0.05;
+      unit.y += separationForceY * 0.05;
+    }
+
+    // =========== Unit Class (Refactored) ===========
+    class Unit {
+      constructor(x, y, size, team, role = "Swordsman", homeCastle = null) {
+        this.id = unitIdCounter++;
+        this.affinities = {};
+        this.randomName = randomNames[Math.floor(Math.random() * randomNames.length)];
+        this.x = x;
+        this.y = y;
+        this.size = size;
+        this.team = team;
+        this.homeCastle = homeCastle;
+        this.color = team;
+        this.angle = Math.random() * Math.PI * 2;
+        this.speed = (role === "Leader") ? 0.5 : Math.random() * 1.5 + 0.5;
+        this.arrows = [];
+        this.fireCooldown = Math.floor(Math.random() * 100 + 50);
+        this.hp = 100;
+        this.maxHp = 100;
+        this.personality = ["aggressive", "defensive", "friendly", "neutral"][Math.floor(Math.random() * 4)];
+        this.message = "";
+        this.messageTimer = 0;
+        this.isResting = false;
+        this.restTimer = 0;
+        this.timeUntilRest = Math.floor(Math.random() * 600) + 300;
+        
+        if (role === "Leader") {
+          this.role = "Knight";
+          this.name = "Knight";
+          this.orderWeights = { rally: 1, rest: 1, attack: 1 };
+          this.currentOrder = null;
+          this.orderTimer = 300;
+          if (team in teamLords) {
+            teamLords[team].push(this);
+          }
+        } else if (role === "Knight") {
+          this.role = "Swordsman";
+          this.name = "Swordsman";
+          this.attackRange = 120;
+          this.preferredLeader = null;
+        } else {
+          this.role = "Worker";
+          this.name = "Worker";
+          this.state = "gather";
+          this.carrying = 0;
+          this.buildTimer = 200;
+        }
+
+        // Waypoint-based logic
+        this.currentWaypoint = { x: this.x, y: this.y };
+        this.altWaypoint = generateRandomWaypoint(this.x, this.y, 200);
+        this.currentValue = scoreWaypoint(this.currentWaypoint);
+        this.altValue = scoreWaypoint(this.altWaypoint);
+      }
+      
+      communicate(msg) {
+        this.message = msg;
+        this.messageTimer = 60;
+      }
+      
+      broadcast(msg) {
+        units.forEach(u => {
+          if (u.team === this.team && Math.hypot(u.x - this.x, u.y - this.y) < 100) {
+            u.communicate(msg);
+          }
+        });
+      }
+      
+      evaluateWaypoints() {
+        if (this.altValue > this.currentValue) {
+          this.currentWaypoint = { ...this.altWaypoint };
+          this.currentValue = this.altValue;
+          this.communicate("New waypoint is more attractive!");
+        }
+        // always generate a new alt
+        this.altWaypoint = generateRandomWaypoint(this.currentWaypoint.x, this.currentWaypoint.y, 100);
+        this.altValue = scoreWaypoint(this.altWaypoint);
+      }
+
+      update() {
+        if (!this.isResting) {
+          this.timeUntilRest--;
+          if (this.timeUntilRest <= 0) {
+            this.isResting = true;
+            this.restTimer = Math.floor(Math.random() * 180) + 120;
+            this.communicate("Taking a break...");
+          }
+        } else {
+          this.restTimer--;
+          if (this.restTimer <= 0) {
+            this.isResting = false;
+            this.timeUntilRest = Math.floor(Math.random() * 600) + 300;
+            this.communicate("Break over!");
+          } else {
+            applySeparation(this);
+            return;
+          }
+        }
+
+        if (Math.random() < 0.01) {
+          this.evaluateWaypoints();
+        }
+
+        // Move toward the currentWaypoint
+        const dx = this.currentWaypoint.x - this.x;
+        const dy = this.currentWaypoint.y - this.y;
+        const distance = Math.hypot(dx, dy);
+        let targetAngle = Math.atan2(dy, dx);
+        let diffAngle = targetAngle - this.angle;
+        diffAngle = ((diffAngle + Math.PI) % (2 * Math.PI)) - Math.PI;
+        this.angle += diffAngle * 0.05;
+
+        // Role-specific
+        if (this.role === "Knight") { 
+          updateLeader(this);
+        } else if (this.role === "Swordsman") {
+          updateSwordsman(this);
+        } else {
+          updatePeasant(this);
+        }
+
+        addCenterBias(this);
+        applySeparation(this);
+
+        if (distance > 3) {
+          // We used to do “adjustAngleForDangerZones” – removed with the new system
+          this.angle = adjustAngleForEnemies(this.x, this.y, this.angle, this.speed, this.team);
+          this.angle = adjustAngleForEdges(this.x, this.y, this.angle, this.speed);
+          this.x += Math.cos(this.angle) * this.speed;
+          this.y += Math.sin(this.angle) * this.speed;
+        }
+      }
+      
+      fireArrow() {
+        if (this.role === "Swordsman") {
+          const arrowSpeed = 5;
+          const arrow = new Arrow(this.x, this.y, this.angle, arrowSpeed, this.team, this.team);
+          this.arrows.push(arrow);
+        }
+      }
+      
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        if (this.role === "Knight") {
+          ctx.beginPath();
+          ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+          ctx.fillStyle = this.team;
+          ctx.fill();
+          ctx.fillStyle = "#fff";
+          ctx.font = "12px serif";
+          ctx.fillText("Knight", -this.size, this.size + 20);
+          ctx.fillText(this.currentOrder ? this.currentOrder.toUpperCase() : "", -this.size, this.size + 10);
+        } else if (this.role === "Swordsman") {
+          ctx.beginPath();
+          ctx.moveTo(this.size, 0);
+          ctx.lineTo(-this.size/2, this.size/2);
+          ctx.lineTo(-this.size/2, -this.size/2);
+          ctx.closePath();
+          ctx.fillStyle = this.team;
+          ctx.fill();
+          this.arrows.forEach(arrow => arrow.draw());
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(0, -this.size);
+          ctx.lineTo(0, this.size);
+          ctx.moveTo(-this.size, 0);
+          ctx.lineTo(this.size, 0);
+          ctx.strokeStyle = this.team;
+          ctx.stroke();
+        }
+        ctx.restore();
+        
+        if (this.isResting) {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y - this.size - 5, 3, 0, Math.PI * 2);
+          ctx.fillStyle = "#FFFF00";
+          ctx.fill();
+        }
+        
+        ctx.fillStyle = "#fff";
+        ctx.font = "10px serif";
+        ctx.fillText(this.name + " " + this.randomName, this.x - this.size, this.y - this.size - 20);
+        ctx.fillText("HP: " + this.hp, this.x - this.size, this.y - this.size - 10);
+        ctx.fillText("[" + this.personality + "]", this.x - this.size, this.y - this.size - 5);
+        if (this.messageTimer > 0) {
+          ctx.fillStyle = "#ff0";
+          ctx.font = "10px serif";
+          ctx.fillText(this.message, this.x - this.size, this.y - this.size - 30);
+          this.messageTimer--;
+        }
+      }
+    }
+
+    // Roles
+    function updateLeader(unit) {
+      unit.orderTimer--;
+      if (unit.orderTimer <= 0) {
+        const decayRate = 0.1;
+        let kills = combatStats[unit.team].unitsKilled || 0;
+        let losses = combatStats[unit.team].unitsLost || 0;
+        let diff = kills - losses;
+        unit.orderWeights.attack += 0.5 * diff;
+        if (unit.orderWeights.attack < 0) unit.orderWeights.attack = 0;
+        for (let key in unit.orderWeights) {
+          unit.orderWeights[key] += decayRate * (1 - unit.orderWeights[key]);
+        }
+        let total = unit.orderWeights.rally + unit.orderWeights.rest + unit.orderWeights.attack;
+        let r = Math.random() * total;
+        if (r < unit.orderWeights.rally) {
+          unit.currentOrder = "rally";
+        } else if (r < unit.orderWeights.rally + unit.orderWeights.rest) {
+          unit.currentOrder = "rest";
+        } else {
+          unit.currentOrder = "attack";
+        }
+        unit.orderTimer = 300;
+      }
+      
+      if (unit.currentOrder === "attack") {
+        let enemyTeam = (unit.team === "blue") ? "red" : "blue";
+        let myThreat = computeTeamThreat(unit.team);
+        let enemyThreat = computeTeamThreat(enemyTeam);
+        if (enemyThreat > myThreat) {
+          let enemyCastleObj = castles.find(castle => castle.team === enemyTeam);
+          if (enemyCastleObj) {
+            let dx = unit.x - enemyCastleObj.x;
+            let dy = unit.y - enemyCastleObj.y;
+            let mag = Math.hypot(dx, dy) || 1;
+            let retreatDistance = 100;
+            unit.currentWaypoint = {
+              x: unit.x + (dx / mag) * retreatDistance,
+              y: unit.y + (dy / mag) * retreatDistance
+            };
+            unit.currentValue = scoreWaypoint(unit.currentWaypoint);
+            unit.communicate("Retreating!");
+          }
+        }
+      }
+    }
+    
+    function updateSwordsman(unit) {
+      const inAttackMode = teamAttackMode[unit.team];
+      let rallyDistance = inAttackMode ? 70 : 50;
+      if (unit.personality === "aggressive") {
+        rallyDistance = inAttackMode ? 100 : 40;
+      } else if (unit.personality === "defensive") {
+        rallyDistance = inAttackMode ? 50 : 60;
+      }
+      
+      if (!unit.preferredLeader || !teamLords[unit.team].includes(unit.preferredLeader)) {
+        if (teamLords[unit.team].length > 0) {
+          unit.preferredLeader = teamLords[unit.team][Math.floor(Math.random() * teamLords[unit.team].length)];
+        }
+      }
+      
+      let enemy = null;
+      let closestDistance = Infinity;
+      if (inAttackMode || unit.personality === "aggressive") {
+        units.forEach(u => {
+          if (u !== unit && u.team !== unit.team && u.role !== "Knight") {
+            let d = Math.hypot(u.x - unit.x, u.y - unit.y);
+            if (d < closestDistance) {
+              closestDistance = d;
+              enemy = u;
+            }
+          }
+        });
+      }
+      
+      if (enemy) {
+        if (unit.personality === "aggressive" || inAttackMode) {
+          let targetAngle = Math.atan2(enemy.y - unit.y, enemy.x - unit.x);
+          let diff = targetAngle - unit.angle;
+          diff = ((diff + Math.PI) % (2 * Math.PI)) - Math.PI;
+          unit.angle += diff * 0.1;
+          unit.communicate("Charge!");
+        } else if (unit.personality === "defensive") {
+          if (closestDistance < unit.attackRange / 2) {
+            let retreatAngle = Math.atan2(unit.y - enemy.y, unit.x - enemy.x);
+            let diff = retreatAngle - unit.angle;
+            diff = ((diff + Math.PI) % (2 * Math.PI)) - Math.PI;
+            unit.angle += diff * 0.1;
+            unit.communicate("Retreat!");
+          } else {
+            let targetAngle = Math.atan2(enemy.y - unit.y, enemy.x - unit.x);
+            let diff = targetAngle - unit.angle;
+            diff = ((diff + Math.PI) % (2 * Math.PI)) - Math.PI;
+            unit.angle += diff * 0.05;
+            unit.communicate("Hold position");
+          }
+        } else if (unit.personality === "friendly") {
+          if (closestDistance < unit.attackRange) {
+            let targetAngle = Math.atan2(enemy.y - unit.y, enemy.x - unit.x);
+            let diff = targetAngle - unit.angle;
+            diff = ((diff + Math.PI) % (2 * Math.PI)) - Math.PI;
+            unit.angle += diff * 0.05;
+            unit.communicate("Be alert!");
+          }
+        } else {
+          let targetAngle = Math.atan2(enemy.y - unit.y, enemy.x - unit.x);
+          let diff = targetAngle - unit.angle;
+          diff = ((diff + Math.PI) % (2 * Math.PI)) - Math.PI;
+          unit.angle += diff * 0.05;
+        }
+      }
+
+      // Ranged attacks
+      if (enemy && Math.hypot(enemy.x - unit.x, enemy.y - unit.y) < unit.attackRange &&
+          (inAttackMode || unit.personality === "aggressive")) {
+        if (unit.fireCooldown <= 0) {
+          unit.fireArrow();
+          combatStats[unit.team].attacksLaunched++;
+          combatStats[unit.team].lastCombatTime = performance.now();
+          unit.fireCooldown = Math.floor(Math.random() * 100 + 50);
+        } else {
+          unit.fireCooldown--;
+        }
+      } else {
+        if (unit.fireCooldown > 0) unit.fireCooldown--;
+      }
+
+      unit.arrows.forEach(arrow => arrow.update());
+      unit.arrows = unit.arrows.filter(arrow => arrow.isInBounds() && !arrow.hit);
+    }
+    
+    function updatePeasant(unit) {
+      if (unit.state === "gather" && unit.carrying === 0) {
+        let targetNode = null;
+        let closestDist = Infinity;
+        resourceNodes.forEach(node => {
+          let d = Math.hypot(node.x - unit.x, node.y - unit.y);
+          if (d < closestDist) {
+            closestDist = d;
+            targetNode = node;
+          }
+        });
+        if (targetNode) {
+          let d = Math.hypot(targetNode.x - unit.x, targetNode.y - unit.y);
+          if (d < 10) {
+            const collected = 5;
+            unit.carrying += collected;
+            unit.communicate("Collected resources!");
+            let nearest = getNearestCastle(unit.team, unit.x, unit.y);
+            if (nearest.castle && nearest.dist < 150) {
+              unit.state = "return";
+              unit.communicate("Returning to castle");
+            } else {
+              unit.state = "build";
+              unit.communicate("Preparing to build");
+            }
+          }
+        } else {
+          let targetAnimal = null;
+          let animalDist = Infinity;
+          animals.forEach(animal => {
+            let d = Math.hypot(animal.x - unit.x, animal.y - unit.y);
+            if (d < animalDist) {
+              animalDist = d;
+              targetAnimal = animal;
+            }
+          });
+          if (targetAnimal && animalDist < 100) {
+            unit.communicate("Hunting animal!");
+            if (animalDist < 10) {
+              targetAnimal.hp -= 50;
+              if (targetAnimal.hp <= 0) {
+                unit.carrying += 20;
+                animals = animals.filter(a => a !== targetAnimal);
+              }
+            }
+          } else {
+            unit.communicate("Searching...");
+          }
+        }
+      } else if (unit.state === "return") {
+        let nearest = getNearestCastle(unit.team, unit.x, unit.y);
+        if (nearest.castle) {
+          let d = Math.hypot(unit.x - nearest.castle.x, unit.y - nearest.castle.y);
+          if (d < 15) {
+            nearest.castle.resources += unit.carrying;
+            unit.carrying = 0;
+            unit.state = "gather";
+            unit.communicate("Deposited resources");
+          }
+        } else {
+          unit.state = "build";
+          unit.communicate("No castle found!");
+        }
+      } else if (unit.state === "build") {
+        if (unit.carrying < 50) {
+          unit.state = "gather";
+          unit.communicate("Not enough resources, gathering more!");
+        } else {
+          unit.buildTimer--;
+          unit.communicate("Building...");
+          if (unit.buildTimer <= 0 && unit.carrying >= 50) {
+            if (canBuildCastle(unit.x, unit.y)) {
+              unit.carrying -= 50;
+              castles.push(new Castle(unit.x, unit.y, unit.team));
+              unit.buildTimer = 200;
+              unit.state = "gather";
+              unit.communicate("Castle built!");
+            } else {
+              unit.state = "gather";
+              unit.communicate("Too close to another castle!");
+            }
+          }
+        }
+      }
+    }
+
+    // Castle Class
+    class Castle {
+      constructor(x, y, team, resources = 0, special = false, townName = "") {
+        this.x = x;
+        this.y = y;
+        this.team = team;
+        this.resources = resources;
+        this.spawnTimer = 300;
+        this.hp = 200;
+        this.special = special;
+        this.townName = townName;
+        this.resourceGenCounter = 0;
+      }
+      
+      calculateUnitWeights() {
+        const stats = combatStats[this.team];
+        const currentTime = performance.now();
+        const timeSinceLastCombat = (currentTime - stats.lastCombatTime) / 1000;
+        let lordWeight = 0.1;
+        let knightWeight = 0.5;
+        let workerWeight = 0.4;
+        knightWeight *= stats.knightEffectiveness;
+        workerWeight *= stats.workerEffectiveness;
+        const resourceSurplus = this.resources > 200;
+        if (resourceSurplus) {
+          lordWeight *= 2;
+        }
+        const recentCombat = timeSinceLastCombat < 10;
+        if (recentCombat) {
+          knightWeight *= 1.5;
+          workerWeight *= 0.5;
+        } else if (timeSinceLastCombat > 30) {
+          workerWeight *= 1.5;
+          knightWeight *= 0.8;
+        }
+        return {
+          lord: lordWeight,
+          knight: knightWeight,
+          worker: workerWeight
+        };
+      }
+      
+      update() {
+        if (this.special) {
+          this.resourceGenCounter++;
+          if (this.resourceGenCounter >= 60) {
+            this.resources++;
+            this.resourceGenCounter = 0;
+          }
+        }
+        this.spawnTimer--;
+        const currentArmySize = getArmySize(this.team);
+        const growthFactor = Math.max(0, (UNIT_CAP - currentArmySize) / UNIT_CAP);
+        let weights = this.calculateUnitWeights();
+        weights.lord *= growthFactor;
+        weights.knight *= growthFactor;
+        weights.worker *= growthFactor;
+        let composition = getTeamComposition(this.team);
+        while (composition.Worker > 5) {
+          let index = units.findIndex(u => u.team === this.team && u.role === "Worker");
+          if (index !== -1) {
+            units.splice(index, 1);
+            composition = getTeamComposition(this.team);
+          } else {
+            break;
+          }
+        }
+        if (composition.Worker >= 5) {
+          weights.worker = 0;
+        }
+        const totalWeight = weights.lord + weights.knight + weights.worker;
+        const normWeights = {
+          lord: weights.lord / totalWeight,
+          knight: weights.knight / totalWeight,
+          worker: weights.worker / totalWeight
+        };
+        
+        if (this.spawnTimer <= 0) {
+          const random = Math.random();
+          let unitType = null;
+          if (this.resources >= 100) {
+            let cumulativeWeight = normWeights.lord;
+            if (random < cumulativeWeight) {
+              unitType = "Leader";
+            }
+          }
+          if (unitType === null && this.resources >= 50) {
+            let cumulativeWeight = normWeights.knight;
+            if (random < cumulativeWeight) {
+              unitType = "Knight";
+            }
+          }
+          if (unitType === null && this.resources >= 25 && composition.Worker < 5) {
+            unitType = "Worker";
+          }
+          if (unitType === "Worker" && composition.Worker >= 5 && this.resources >= 50) {
+            unitType = "Knight";
+          }
+          
+          if (unitType === "Leader" && this.resources >= 100) {
+            let leader = new Unit(
+              this.x + (Math.random()-0.5)*20,
+              this.y + (Math.random()-0.5)*20,
+              15,
+              this.team,
+              "Leader",
+              this
+            );
+            units.push(leader);
+            this.resources -= 100;
+          } else if (unitType === "Knight" && this.resources >= 50) {
+            let swordsman = new Unit(
+              this.x + (Math.random()-0.5)*20,
+              this.y + (Math.random()-0.5)*20,
+              Math.random()*10+15,
+              this.team,
+              "Knight",
+              this
+            );
+            if (teamLords[this.team].length > 0) {
+              swordsman.preferredLeader = teamLords[this.team][Math.floor(Math.random() * teamLords[this.team].length)];
+            }
+            units.push(swordsman);
+            this.resources -= 50;
+          } else if (unitType === "Worker" && this.resources >= 25) {
+            let worker = new Unit(
+              this.x + (Math.random()-0.5)*20,
+              this.y + (Math.random()-0.5)*20,
+              Math.random()*10+15,
+              this.team,
+              "Worker",
+              this
+            );
+            units.push(worker);
+            this.resources -= 25;
+          }
+          this.spawnTimer = 300;
+        }
+
+        // We no longer do "danger zone" expansions
+      }
+      
+      draw() {
+        ctx.beginPath();
+        ctx.rect(this.x - 20, this.y - 20, 40, 40);
+        ctx.fillStyle = this.team;
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.font = "12px serif";
+        ctx.fillText("Resources: " + this.resources, this.x - 30, this.y - 30);
+        ctx.fillText("HP: " + this.hp, this.x - 30, this.y - 15);
+        if (this.special) {
+          ctx.fillText(this.townName, this.x - 30, this.y - 45);
+        }
+        // faint circle around the castle
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, BUILD_PROTECTION_RADIUS, 0, Math.PI * 2);
+        ctx.strokeStyle = this.team;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.5;
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      }
+    }
+
+    // ResourceNode Class (unchanged, aside from removing danger references)
+    class ResourceNode {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.amount = Infinity;
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = "#8B4513";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(this.x, this.y - 8, 15, 0, Math.PI * 2);
+        ctx.fillStyle = "#228B22";
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.font = "10px serif";
+        ctx.fillText("Wood", this.x - 14, this.y - 20);
+      }
+    }
+
+    // Animal Class, same except no references to danger
+    class Animal {
+      constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.hp = 50;
+        this.speed = Math.random() * 1 + 0.5;
+        this.angle = Math.random() * Math.PI * 2;
+      }
+      update() {
+        const neighborRadius = 50;
+        let avgX = 0, avgY = 0, count = 0;
+        animals.forEach(other => {
+          if (other !== this) {
+            let d = Math.hypot(other.x - this.x, other.y - this.y);
+            if (d < neighborRadius) {
+              avgX += other.x;
+              avgY += other.y;
+              count++;
+            }
+          }
+        });
+        if (count > 0) {
+          avgX /= count;
+          avgY /= count;
+          let desiredAngle = Math.atan2(avgY - this.y, avgX - this.x);
+          let diffAngle = desiredAngle - this.angle;
+          diffAngle = ((diffAngle + Math.PI) % (2 * Math.PI)) - Math.PI;
+          this.angle += diffAngle * 0.05;
+        }
+        this.angle += (Math.random() - 0.5) * 0.1;
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed;
+        if (this.x < 0 || this.x > canvas.width) this.angle = Math.PI - this.angle;
+        if (this.y < 0 || this.y > canvas.height) this.angle = -this.angle;
+      }
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = "white";
+        ctx.fill();
+        ctx.fillStyle = "#000";
+        ctx.font = "8px serif";
+        ctx.fillText("Animal", this.x - 15, this.y - 10);
+      }
+    }
+
+    // === Initialization ===
+    let homeCastle = new Castle(100, canvas.height/2, "blue", 100, true, "Camelot");
+    castles.push(homeCastle);
+    let blueLeader = new Unit(130, canvas.height/2, 15, "blue", "Leader");
+    units.push(blueLeader);
+    
+    let enemyCastle = new Castle(canvas.width - 100, canvas.height/2, "red", 100);
+    castles.push(enemyCastle);
+    let redLeader = new Unit(canvas.width - 130, canvas.height/2, 15, "red", "Leader");
+    units.push(redLeader);
+    
+    ["blue", "red"].forEach(team => {
+      for (let i = 0; i < 3; i++){
+        let x = team==="blue" ? 150 + Math.random()*50 : canvas.width - 150 + (Math.random()-0.5)*50;
+        let y = canvas.height/2 + (Math.random()-0.5)*100;
+        let swordsman = new Unit(x, y, Math.random()*10+15, team, "Knight", "Knight");
+        swordsman.preferredLeader = team === "blue" ? blueLeader : redLeader;
+        units.push(swordsman);
+      }
+    });
+    
+    for (let i = 0; i < 5; i++){
+      let x = Math.random() * canvas.width;
+      let y = Math.random() * canvas.height;
+      resourceNodes.push(new ResourceNode(x, y));
+    }
+    
+    for (let i = 0; i < 5; i++){
+      let x = Math.random() * canvas.width;
+      let y = Math.random() * canvas.height;
+      animals.push(new Animal(x, y));
+    }
+    
+    // === Collision Detection with “Bad Memory” Creation ===
+    function checkCollisions() {
+      const unitsToRemove = new Set();
+
+      units.forEach(shooter => {
+        if (shooter.role === "Swordsman") {
+          shooter.arrows.forEach(arrow => {
+            units.forEach(target => {
+              if (target.team !== shooter.team && target.role !== "Knight") {
+                const dx = arrow.x - target.x;
+                const dy = arrow.y - target.y;
+                if (Math.hypot(dx, dy) < target.size/2) {
+                  arrow.hit = true;
+                  target.hp -= 50;
+                  combatStats[shooter.team].damageDealt += 50;
+                  combatStats[shooter.team].lastCombatTime = performance.now();
+                  if (target.hp <= 0) {
+                    unitsToRemove.add(target);
+                    combatStats[target.team].unitsLost++;
+                    combatStats[target.team].lastCombatTime = performance.now();
+                    combatStats[shooter.team].unitsKilled = (combatStats[shooter.team].unitsKilled || 0) + 1;
+                    
+                    if (target.role === "Swordsman") {
+                      combatStats[target.team].knightEffectiveness *= 0.95;
+                      combatStats[shooter.team].knightEffectiveness *= 1.05;
+                    } else if (target.role === "Worker") {
+                      combatStats[target.team].workerEffectiveness *= 0.95;
+                    }
+                    
+                    // NEW: Instead of DangerZones, we add a bad memory
+                    // The “intensity” can vary – for demonstration, we just pick 2.0
+                    // Or scale by the affinity that the shooter has with the victim, etc.
+                    badMemories.push({
+                      x: target.x,
+                      y: target.y,
+                      intensity: 2.0
+                    });
+                  }
+                }
+              }
+            });
+          });
+        }
+      });
+      units = units.filter(unit => !unitsToRemove.has(unit));
+      
+      // Next, check for castle damage
+      const castlesToRemove = new Set();
+      units.forEach(unit => {
+        if (unit.role === "Swordsman") {
+          unit.arrows.forEach(arrow => {
+            castles.forEach(castle => {
+              if (arrow.team !== castle.team) {
+                const dx = arrow.x - castle.x;
+                const dy = arrow.y - castle.y;
+                if (Math.hypot(dx, dy) < 20) {
+                  arrow.hit = true;
+                  castle.hp -= 50;
+                  if (castle.hp <= 0) {
+                    castlesToRemove.add(castle);
+                    
+                    // Add a memory for the castle's destruction
+                    badMemories.push({
+                      x: castle.x,
+                      y: castle.y,
+                      intensity: 3.0
+                    });
+                  }
+                }
+              }
+            });
+          });
+        }
+      });
+      castles = castles.filter(castle => {
+        if (castlesToRemove.has(castle)) {
+          return false;
+        }
+        return true;
+      });
+      
+      units.forEach(unit => {
+        if (unit.role === "Swordsman") {
+          unit.arrows = unit.arrows.filter(arrow => arrow.isInBounds() && !arrow.hit);
+        }
+      });
+    }
+    
+    // === Main Animation Loop ===
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#fff";
+      ctx.font = "14px serif";
+      ctx.fillText("Blue Army: " + getArmySize("blue") + "/" + MIN_ARMY_SIZE["blue"] + " units", 20, 20);
+      ctx.fillText("Red Army: " + getArmySize("red") + "/" + MIN_ARMY_SIZE["red"] + " units", canvas.width - 200, 20);
+      ctx.fillText("Blue Leaders: " + teamLords["blue"].length, 20, 40);
+      ctx.fillText("Red Leaders: " + teamLords["red"].length, canvas.width - 200, 40);
+      
+      const blueSwordsmen = units.filter(u => u.team === "blue" && u.role === "Swordsman").length;
+      const blueWorkers = units.filter(u => u.team === "blue" && u.role === "Worker").length;
+      const redSwordsmen = units.filter(u => u.team === "red" && u.role === "Swordsman").length;
+      const redWorkers = units.filter(u => u.team === "red" && u.role === "Worker").length;
+      
+      ctx.fillText("Blue: " + blueSwordsmen + " Swordsmen, " + blueWorkers + " Workers", 20, 60);
+      ctx.fillText("Red: " + redSwordsmen + " Swordsmen, " + redWorkers + " Workers", canvas.width - 200, 60);
+      
+      const blueCastle = castles.find(c => c.team === "blue" && c.special);
+      const redCastle = castles.find(c => c.team === "red" && c.special);
+      
+      if (blueCastle) {
+        const blueWeights = blueCastle.calculateUnitWeights();
+        ctx.fillText("Blue Resources: " + blueCastle.resources, 20, 80);
+        ctx.fillText(
+          "Weights: K:" + blueWeights.knight.toFixed(2) +
+          " W:" + blueWeights.worker.toFixed(2) +
+          " L:" + blueWeights.lord.toFixed(2),
+          20, 100
+        );
+      }
+      
+      if (redCastle) {
+        const redWeights = redCastle.calculateUnitWeights();
+        ctx.fillText("Red Resources: " + redCastle.resources, canvas.width - 200, 80);
+        ctx.fillText(
+          "Weights: K:" + redWeights.knight.toFixed(2) +
+          " W:" + redWeights.worker.toFixed(2) +
+          " L:" + redWeights.lord.toFixed(2),
+          canvas.width - 200, 100
+        );
+      }
+      
+      // We can optionally let badMemories fade over time, if desired
+      // For example, reduce intensity slightly each frame.
+      badMemories.forEach(mem => {
+        mem.intensity *= 0.999; // slowly fade
+      });
+      // Then remove memories that get too small in intensity
+      badMemories = badMemories.filter(mem => mem.intensity > 0.05);
+
+      castles.forEach(castle => castle.update());
+      animals.forEach(animal => animal.update());
+      units.forEach(unit => unit.update());
+      checkCollisions();
+      
+      resourceNodes.forEach(node => node.draw());
+      animals.forEach(animal => animal.draw());
+      castles.forEach(castle => castle.draw());
+      units.forEach(unit => unit.draw());
+      
+      requestAnimationFrame(animate);
+    }
+    animate();
+  </script>
+</body>
+</html>
