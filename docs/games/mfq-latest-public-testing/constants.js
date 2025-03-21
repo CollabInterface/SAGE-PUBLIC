@@ -99,7 +99,7 @@ const IDLE_ENERGY_COST = 0.005;    // Minimal energy cost when idle
 const WORK_ENERGY_COST = 0.03;     // Energy cost for worker activities
 
 // Movement speed multipliers
-const WALK_SPEED_MULTIPLIER = 0.7; // Walking is 70% of base speed
+const WALK_SPEED_MULTIPLIER = 1.0; // Walking is 70% of base speed
 const RUN_SPEED_MULTIPLIER = 1.8;  // Running is 180% of base speed
 const LOW_ENERGY_THRESHOLD = 30;   // Below this energy level, units can't run
 const CRITICAL_ENERGY_THRESHOLD = 10; // Below this energy level, units move slowly

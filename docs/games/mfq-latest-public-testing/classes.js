@@ -20,7 +20,7 @@ class Arrow {
     // Tracking properties
     this.hit = false;
     this.distanceTraveled = 0;
-    this.maxRange = 450; // Increased range
+    this.maxRange = 450; // Increased range	
     this.creationTime = performance.now();
     
     // Trail effect (store previous positions)
@@ -1140,32 +1140,21 @@ class Unit {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
 
-    // --------------------------------------------------
-    // (A) VISION CONE - faint fill + faint outline
-    // --------------------------------------------------
-    ctx.save();
-    
-    // Rotate 90 degrees to the left (π/2 radians counterclockwise)
-    ctx.rotate(-Math.PI/2);
-
-    // Faint fill
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    // 60° total: from -30° to +30°, radius ~80
-    ctx.arc(0, 0, 80, -Math.PI/6, Math.PI/6);
-    ctx.closePath();
-
-    ctx.globalAlpha = 0.1;       // faint fill
-    ctx.fillStyle = this.color;
-    ctx.fill();
-
-    // Faint outline
-    ctx.globalAlpha = 0.3;
-    ctx.strokeStyle = this.color;
-    ctx.stroke();
-
-    ctx.restore();
-    // --------------------------------------------------
+/*
+ctx.save();
+ctx.rotate(-Math.PI/2);
+ctx.beginPath();
+ctx.moveTo(0, 0);
+ctx.arc(0, 0, 80, -Math.PI/6, Math.PI/6);
+ctx.closePath();
+ctx.globalAlpha = 0.1;
+ctx.fillStyle = this.color;
+ctx.fill();
+ctx.globalAlpha = 0.3;
+ctx.strokeStyle = this.color;
+ctx.stroke();
+ctx.restore();
+*/
 
     const R = this.size * 0.5;
     ctx.fillStyle = this.color;
@@ -1247,49 +1236,6 @@ class Unit {
     ctx.beginPath();
     ctx.arc(handCenterXLeft, 0, handRadius, 0, Math.PI*2);
     ctx.fill();
-    
-    // Draw items held in hands
-    if (this.rightHand) {
-      if (this.rightHand.type === "apple") {
-        // Draw apple in right hand
-        ctx.beginPath();
-        ctx.arc(handCenterXRight + handRadius * 1.5, 0, handRadius * 1.2, 0, Math.PI*2);
-        ctx.fillStyle = "red";
-        ctx.fill();
-        
-        // Small stem
-        ctx.beginPath();
-        ctx.moveTo(handCenterXRight + handRadius * 1.5, -handRadius * 1.2);
-        ctx.lineTo(handCenterXRight + handRadius * 1.5, -handRadius * 1.7);
-        ctx.strokeStyle = "#8B4513";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        
-        // Reset fill color
-        ctx.fillStyle = this.color;
-      }
-    }
-    
-    if (this.leftHand) {
-      if (this.leftHand.type === "apple") {
-        // Draw apple in left hand
-        ctx.beginPath();
-        ctx.arc(handCenterXLeft - handRadius * 1.5, 0, handRadius * 1.2, 0, Math.PI*2);
-        ctx.fillStyle = "red";
-        ctx.fill();
-        
-        // Small stem
-        ctx.beginPath();
-        ctx.moveTo(handCenterXLeft - handRadius * 1.5, -handRadius * 1.2);
-        ctx.lineTo(handCenterXLeft - handRadius * 1.5, -handRadius * 1.7);
-        ctx.strokeStyle = "#8B4513";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        
-        // Reset fill color
-        ctx.fillStyle = this.color;
-      }
-    }
 
     ctx.restore(); // revert translation/rotation to normal
 

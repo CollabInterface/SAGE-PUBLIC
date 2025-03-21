@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Medieval Fantasy Simulation v2.1.0 - Energy System</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="leftStats" class="stats-panel left-stats"></div>
+<div id="rightStats" class="stats-panel right-stats"></div>
+<div class="version-info">v2.1.0 - Energy System</div>
+<canvas id="battleCanvas"></canvas>
+
+<!-- Tooltip for displaying unit info on hover -->
+<div id="tooltip" class="tooltip" style="display: none;"></div>
+
+<script src="constants.js"></script>
+<script src="classes.js"></script>
+<script src="main.js"></script>
+
+<script>
+// Add tooltip functionality for hovering over units
+canvas.addEventListener('mousemove', function(event) {
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
+  
+  let hoveredUnit = null;
+  for (let unit of units) {
+    if (unit.isPointInside(mouseX, mouseY)) {
+      hoveredUnit = unit;
+      break;
+    }
+  }
+  
+  const tooltip = document.getElementById('tooltip');
+  
+  if (hoveredUnit) {
+    let energyClass = 'energy-high';
+    if (hoveredUnit.energy < LOW_ENERGY_THRESHOLD) {
+      energyClass = 'energy-low';
+    } else if (hoveredUnit.energy < 70) {
+      energyClass = 'energy-medium';
+    }
+    
+    let statusText = hoveredUnit.isSleeping ? 'Sleeping' : 
+                  (hoveredUnit.isMoving ? 
+                    (hoveredUnit.movementMode === 'run' ? 'Running' : 'Walking') : 
+                    'Idle');
+    
+    tooltip.innerHTML = `
+      <div>${hoveredUnit.randomName} (Team: ${hoveredUnit.team})</div>
+      <div>Status: ${statusText}</div>
+      <div>Energy: <span class="${energyClass}">${Math.floor(hoveredUnit.energy)}/${hoveredUnit.maxEnergy}</span></div>
+      <div>Skills: F:${hoveredUnit.skills.fighter.toFixed(1)} W:${hoveredUnit.skills.worker.toFixed(1)} L:${hoveredUnit.skills.leader.toFixed(1)} T:${hoveredUnit.skills.trainer.toFixed(1)}</div>
+    `;
+    
+    tooltip.style.display = 'block';
+    tooltip.style.left = (event.clientX + 10) + 'px';
+    tooltip.style.top = (event.clientY + 10) + 'px';
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+
+// Hide tooltip when mouse leaves canvas
+canvas.addEventListener('mouseleave', function() {
+  document.getElementById('tooltip').style.display = 'none';
+});
+</script>
+</body>
+</html>

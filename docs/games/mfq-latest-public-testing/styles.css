@@ -1,0 +1,90 @@
+/* styles.css - Medieval Fantasy Simulation v2.1.0 - Energy System Styles */
+
+body {
+  margin: 0;
+  background-color: #333;
+  overflow: hidden;
+  font-family: 'Times New Roman', serif;
+}
+
+canvas {
+  display: block;
+  cursor: pointer;
+}
+
+.stats-panel {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  pointer-events: none;
+  font-size: 12px;
+}
+
+.left-stats {
+  top: 10px;
+  left: 10px;
+  width: 220px;
+}
+
+.right-stats {
+  top: 10px;
+  right: 10px;
+  width: 220px;
+  text-align: right;
+}
+
+.stat-value {
+  font-weight: bold;
+}
+
+.version-info {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 10px;
+}
+
+/* Energy indicators */
+.energy-high {
+  color: #00FF00;
+}
+
+.energy-medium {
+  color: #FFFF00;
+}
+
+.energy-low {
+  color: #FF0000;
+}
+
+/* Tooltip styles for energy info */
+.tooltip {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 100;
+  max-width: 220px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Enhanced alert for low energy */
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+.energy-critical {
+  animation: pulse 1s infinite;
+}

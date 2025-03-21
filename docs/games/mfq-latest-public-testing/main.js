@@ -36,31 +36,11 @@ function createDeterministicTrees(count = 5, radius = 200) {
   }
 }
 
-// Add tooltip information about vision cone pathfinding
-function updateControlsPanel() {
-  const controlsPanel = document.getElementById('controls');
-  controlsPanel.innerHTML = `
-    Click on units to toggle selection and see their vision cone pathfinding.
-    <br>
-    <span style="color: #FFFF00;">Vision cone radius: ${VISION_CONE_RADIUS}px, angle: ${(VISION_CONE_ANGLE * 180 / Math.PI).toFixed(0)}°</span>
-    <br>
-    Units can only move to points they can see within their vision cone.
-    <br><br>
-    <span style="color: #ADD8E6;"><b>Energy System:</b></span>
-    <ul style="margin: 2px 0 0 15px; padding: 0;">
-      <li>Walking: ${WALK_ENERGY_COST * 100} energy/sec, ${Math.round(WALK_SPEED_MULTIPLIER * 100)}% speed</li>
-      <li>Running: ${RUN_ENERGY_COST * 100} energy/sec, ${Math.round(RUN_SPEED_MULTIPLIER * 100)}% speed</li>
-      <li>Sleep: Recovers ${ENERGY_RECOVERY_RATE * 60} energy/sec</li>
-      <li>Units need ${LOW_ENERGY_THRESHOLD}+ energy to run</li>
-    </ul>
-  `;
-}
-
 function initializeWorld() {
   // Create initial castles
-  let homeCastle = new Castle(100, canvas.height/2, "blue", 100, true, "Camelot");
+  let homeCastle = new Castle(400, canvas.height/2, "blue", 100, true, "Camelot");
   castles.push(homeCastle);
-  let enemyCastle = new Castle(canvas.width - 100, canvas.height/2, "red", 100, true, "Mordor");
+  let enemyCastle = new Castle(canvas.width - 400, canvas.height/2, "red", 100, true, "Mordor");
   castles.push(enemyCastle);
 
   // Create initial units
@@ -89,9 +69,6 @@ function initializeWorld() {
     let y = Math.random() * canvas.height;
     animals.push(new Animal(x, y));
   }
-  
-  // Update the controls panel with vision cone information
-  updateControlsPanel();
 }
 
 // ========================================================
@@ -195,7 +172,7 @@ function animate() {
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Draw energy system indicator lines
+  // Draw energy system indicator line
   const margin = 40;
   const spacing = 15;
   const width = 150;
@@ -204,10 +181,6 @@ function animate() {
   ctx.save();
   ctx.font = "14px serif";
   ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-  
-  // Attack range info on left
-  ctx.textAlign = "left";
-  ctx.fillText(`Attack Range: ${MIN_ATTACK_RANGE} - ${MAX_ATTACK_RANGE} (Optimal: ${OPTIMAL_ATTACK_RANGE})`, 10, canvas.height - 20);
   
   // Energy system info on right
   ctx.textAlign = "right";
