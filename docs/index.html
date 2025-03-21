@@ -3,83 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My GitHub Page</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/octicons/4.4.0/octicons.min.css">
+    <title>Game Collection</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a2e;
+            color: #e6e6e6;
             margin: 0;
-            padding: 20px;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .header {
-            text-align: center;
-            padding: 2rem 0;
-        }
-        .profile-img {
-            width: 150px;
-            border-radius: 50%;
-            margin: 1rem 0;
-        }
-        .project-list {
-            list-style: none;
             padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
-        .project-list li {
-            margin: 1rem 0;
-            padding: 1rem;
-            border: 1px solid #eee;
-            border-radius: 5px;
+        
+        header {
+            background-color: #16213e;
+            color: #fff;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        a {
-            color: #0366d6;
+        
+        h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        
+        .subtitle {
+            color: #a7a7a7;
+            font-style: italic;
+            margin-top: 0.5rem;
+        }
+        
+        main {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .game-card {
+            background-color: #0f3460;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .game-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        .game-card img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-bottom: 3px solid #e94560;
+        }
+        
+        .game-info {
+            padding: 1.5rem;
+        }
+        
+        .game-title {
+            font-size: 1.5rem;
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+        
+        .game-description {
+            color: #d1d1d1;
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+        }
+        
+        .game-link {
+            display: inline-block;
+            background-color: #e94560;
+            color: white;
+            padding: 0.75rem 1.5rem;
             text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
         }
-        a:hover {
-            text-decoration: underline;
+        
+        .game-link:hover {
+            background-color: #c73550;
+        }
+        
+        .coming-soon {
+            position: relative;
+        }
+        
+        .coming-soon::after {
+            content: "Coming Soon";
+            position: absolute;
+            top: 0;
+            right: 0;
+            background-color: #e94560;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-weight: bold;
+            transform: rotate(45deg) translate(22px, -10px);
+            transform-origin: top right;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .coming-soon img {
+            filter: brightness(0.7);
+        }
+        
+        footer {
+            background-color: #16213e;
+            color: #a7a7a7;
+            text-align: center;
+            padding: 1.5rem;
+            margin-top: auto;
+        }
+        
+        @media (max-width: 768px) {
+            .games-grid {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .games-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Welcome to My GitHub Page</h1>
-        <!-- You can add a profile image here -->
-        <!-- <img src="your-image.jpg" alt="Profile Picture" class="profile-img"> -->
-    </div>
-
-    <div class="content">
-        <h2>About Me</h2>
-        <p>Hi! I'm a developer passionate about coding and open source projects.</p>
-        
-        <h2>My Projects</h2>
-        <ul class="project-list">
-            <li>
-                <a href="#">
-                    Project 1
-                </a>
-                <p>A brief description of your first project.</p>
-            </li>
-            <li>
-                <a href="#">
-                    Project 2
-                </a>
-                <p>A brief description of your second project.</p>
-            </li>
-        </ul>
-
-        <h2>Connect with Me</h2>
-        <p>
-            <a href="https://github.com/your-username" target="_blank">
-                <span class="octicon octicon-mark-github"></span>
-                GitHub Profile
-            </a>
-        </p>
-    </div>
-
-    <footer style="margin-top: 2rem; text-align: center; color: #666;">
-        <p>© 2023 Your Name. Hosted on GitHub Pages.</p>
+    <header>
+        <h1>Game Collection</h1>
+        <p class="subtitle">Explore interactive simulations and games</p>
+    </header>
+    
+    <main>
+        <div class="games-grid">
+            <div class="game-card">
+                <img src="/api/placeholder/400/240" alt="Medieval Fantasy Simulation">
+                <div class="game-info">
+                    <h2 class="game-title">Medieval Fantasy Simulation</h2>
+                    <p class="game-description">A dynamic simulation featuring autonomous AI units with energy systems, combat tactics, and resource management. Watch blue and red teams compete for resources and territory.</p>
+                    <a href="games/medieval-fantasy-quest/index.html" class="game-link">Play Now</a>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <p>&copy; 2025 Game Collection. All simulations are for educational and entertainment purposes.</p>
     </footer>
 </body>
 </html>
