@@ -3,34 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive game collection featuring simulations, arcade games, and educational experiences">
     <title>Game Collection</title>
     <style>
+        :root {
+            --primary-bg: #1a1a2e;
+            --secondary-bg: #16213e;
+            --card-bg: #0f3460;
+            --accent-color: #e94560;
+            --accent-hover: #c73550;
+            --text-primary: #ffffff;
+            --text-secondary: #d1d1d1;
+            --text-muted: #a7a7a7;
+            --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.3);
+            --border-radius: 5px;
+            --transition-standard: all 0.3s ease;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #1a1a2e;
-            color: #e6e6e6;
+            background-color: var(--primary-bg);
+            color: var(--text-primary);
             margin: 0;
             padding: 0;
             display: flex;
             flex-direction: column;
             min-height: 100vh;
+            line-height: 1.6;
         }
         
         header {
-            background-color: #16213e;
-            color: #fff;
+            background-color: var(--secondary-bg);
             padding: 1.5rem;
             text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow-sm);
+            position: relative;
+            z-index: 10;
         }
         
         h1 {
             margin: 0;
             font-size: 2.5rem;
+            letter-spacing: -0.5px;
         }
         
         .subtitle {
-            color: #a7a7a7;
+            color: var(--text-muted);
             font-style: italic;
             margin-top: 0.5rem;
         }
@@ -43,63 +68,168 @@
             width: 100%;
         }
         
+        .search-container {
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .search-box {
+            flex-grow: 1;
+            max-width: 500px;
+            position: relative;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            border: 2px solid transparent;
+            border-radius: var(--border-radius);
+            background-color: var(--secondary-bg);
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: var(--transition-standard);
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.2);
+        }
+        
+        .search-box::before {
+            content: "🔍";
+            position: absolute;
+            left: 0.75rem;
+            top: 0.75rem;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+        
+        .category-filter {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .category-btn {
+            background-color: var(--secondary-bg);
+            color: var(--text-primary);
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: var(--transition-standard);
+            font-weight: 500;
+        }
+        
+        .category-btn:hover {
+            background-color: rgba(233, 69, 96, 0.7);
+        }
+
+        .category-btn:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.5);
+        }
+        
+        .category-btn.active {
+            background-color: var(--accent-color);
+        }
+        
         .games-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 2rem;
             margin-top: 2rem;
+            min-height: 200px;
         }
         
         .game-card {
-            background-color: #0f3460;
+            background-color: var(--card-bg);
             border-radius: 10px;
             overflow: hidden;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: var(--transition-standard);
+            box-shadow: var(--shadow-sm);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
         }
         
         .game-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            box-shadow: var(--shadow-md);
         }
         
         .game-card img {
             width: 100%;
             height: 180px;
             object-fit: cover;
-            border-bottom: 3px solid #e94560;
+            border-bottom: 3px solid var(--accent-color);
         }
         
         .game-info {
             padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
         }
         
         .game-title {
             font-size: 1.5rem;
             margin-top: 0;
             margin-bottom: 0.5rem;
-            color: #fff;
+            color: var(--text-primary);
         }
         
         .game-description {
-            color: #d1d1d1;
+            color: var(--text-secondary);
             line-height: 1.5;
             margin-bottom: 1.5rem;
+            flex-grow: 1;
+        }
+        
+        .game-meta {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            align-items: center;
+        }
+        
+        .game-category {
+            background-color: rgba(233, 69, 96, 0.2);
+            color: var(--accent-color);
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-weight: 500;
         }
         
         .game-link {
             display: inline-block;
-            background-color: #e94560;
+            background-color: var(--accent-color);
             color: white;
             padding: 0.75rem 1.5rem;
             text-decoration: none;
-            border-radius: 5px;
+            border-radius: var(--border-radius);
             font-weight: bold;
-            transition: background-color 0.3s ease;
+            transition: var(--transition-standard);
+            text-align: center;
+            border: none;
+            cursor: pointer;
         }
         
         .game-link:hover {
-            background-color: #c73550;
+            background-color: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+        
+        .game-link:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.5);
         }
         
         .coming-soon {
@@ -111,13 +241,14 @@
             position: absolute;
             top: 0;
             right: 0;
-            background-color: #e94560;
+            background-color: var(--accent-color);
             color: white;
             padding: 0.5rem 1rem;
             font-weight: bold;
             transform: rotate(45deg) translate(22px, -10px);
             transform-origin: top right;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            z-index: 5;
         }
         
         .coming-soon img {
@@ -125,22 +256,119 @@
         }
         
         footer {
-            background-color: #16213e;
-            color: #a7a7a7;
+            background-color: var(--secondary-bg);
+            color: var(--text-muted);
             text-align: center;
             padding: 1.5rem;
             margin-top: auto;
         }
         
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            max-width: 1200px;
+            margin: 0 auto;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .footer-links {
+            display: flex;
+            gap: 1.5rem;
+        }
+        
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: var(--transition-standard);
+            padding: 0.25rem;
+        }
+        
+        .footer-link:hover {
+            color: var(--accent-color);
+        }
+        
+        .footer-link:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.3);
+            border-radius: 3px;
+        }
+        
+        .no-results {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            display: none;
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(233, 69, 96, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--accent-color);
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+        
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
         @media (max-width: 768px) {
+            .search-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .search-box {
+                max-width: none;
+            }
+            
             .games-grid {
                 grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            }
+            
+            .footer-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 1.5rem;
+            }
+            
+            .footer-links {
+                justify-content: center;
             }
         }
         
         @media (max-width: 480px) {
             .games-grid {
                 grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .category-filter {
+                justify-content: center;
+            }
+        }
+
+        /* High contrast mode for accessibility */
+        @media (prefers-contrast: high) {
+            :root {
+                --primary-bg: #000000;
+                --secondary-bg: #111111;
+                --card-bg: #222222;
+                --accent-color: #ff0000;
+                --accent-hover: #aa0000;
+                --text-primary: #ffffff;
+                --text-secondary: #ffffff;
+                --text-muted: #eeeeee;
             }
         }
     </style>
@@ -152,20 +380,230 @@
     </header>
     
     <main>
-        <div class="games-grid">
-            <div class="game-card">
-                <img src="/api/placeholder/400/240" alt="Medieval Fantasy Simulation">
-                <div class="game-info">
-                    <h2 class="game-title">Medieval Fantasy Simulation</h2>
-                    <p class="game-description">A dynamic simulation featuring autonomous AI units with energy systems, combat tactics, and resource management. Watch blue and red teams compete for resources and territory.</p>
-                    <a href="games/medieval-fantasy-quest/index.html" class="game-link">Play Now</a>
-                </div>
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Search games..." aria-label="Search games">
             </div>
+            <div class="category-filter" role="group" aria-label="Filter games by category">
+                <button class="category-btn active" data-category="All">All</button>
+                <button class="category-btn" data-category="Simulation">Simulation</button>
+                <button class="category-btn" data-category="Adventure">Adventure</button>
+                <button class="category-btn" data-category="Arcade">Arcade</button>
+                <button class="category-btn" data-category="Educational">Educational</button>
+                <button class="category-btn" data-category="Dreamlike">Dreamlike</button>
+            </div>
+        </div>
+        
+        <div id="loading-spinner" class="loading-spinner" aria-hidden="true"></div>
+        
+        <div class="games-grid" id="games-grid">
+            <!-- Game cards will be populated dynamically -->
+        </div>
+        
+        <div id="no-results" class="no-results">
+            <h3>No games found matching your search criteria</h3>
+            <p>Try adjusting your search terms or selecting a different category.</p>
         </div>
     </main>
     
     <footer>
-        <p>&copy; 2025 Game Collection. All simulations are for educational and entertainment purposes.</p>
+        <div class="footer-content">
+            <p>&copy; 2025 Game Collection. All simulations are for educational and entertainment purposes.</p>
+            <div class="footer-links">
+                <a href="#" class="footer-link">About</a>
+                <a href="#" class="footer-link">Contact</a>
+                <a href="#" class="footer-link">Privacy Policy</a>
+            </div>
+        </div>
     </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Game data - in a real application, this would likely come from an API
+            const gameData = [
+                {
+                    id: 1,
+                    title: "Medieval Fantasy Simulation",
+                    category: "Simulation",
+                    date: "21/03/2025",
+                    description: "A dynamic simulation featuring autonomous AI units with energy systems, combat tactics, and resource management. Watch blue and red teams compete for resources and territory.",
+                    image: "/api/placeholder/400/240",
+                    imageAlt: "Medieval Fantasy Simulation",
+                    link: "games/medieval-fantasy-quest/index.html",
+                    isComingSoon: false
+                },
+                {
+                    id: 2,
+                    title: "Batty Bat",
+                    category: "Arcade",
+                    date: "19/03/2025",
+                    description: "Guide your bat through challenging cave systems while avoiding obstacles. Test your reflexes in this fast-paced arcade game!",
+                    image: "/api/placeholder/400/240",
+                    imageAlt: "Batty Bat",
+                    link: "batty-bat-game.html",
+                    isComingSoon: false
+                },
+                {
+                    id: 3,
+                    title: "Celestial Simulator",
+                    category: "Educational",
+                    date: "19/03/2025",
+                    description: "Explore the wonders of our solar system in this interactive celestial simulator. Create your own planetary systems and observe gravitational interactions in real-time.",
+                    image: "/api/placeholder/400/240",
+                    imageAlt: "Celestial Simulator",
+                    link: "celestial-simulator.html",
+                    isComingSoon: false
+                },
+                {
+                    id: 4,
+                    title: "Generative Games",
+                    category: "Dreamlike",
+                    date: "Coming Soon",
+                    description: "Your imagination is our reality.",
+                    image: "/api/placeholder/400/240",
+                    imageAlt: "Deterministic",
+                    link: "#",
+                    isComingSoon: true
+                }
+            ];
+
+            // Cache DOM elements
+            const gamesGrid = document.getElementById('games-grid');
+            const searchInput = document.getElementById('search-input');
+            const categoryButtons = document.querySelectorAll('.category-btn');
+            const noResultsMessage = document.getElementById('no-results');
+            const loadingSpinner = document.getElementById('loading-spinner');
+
+            // Initialize state
+            let activeCategory = 'All';
+            let searchTerm = '';
+            let filteredGames = [...gameData];
+
+            // Functions
+            function createGameCard(game) {
+                const gameCard = document.createElement('div');
+                gameCard.className = `game-card${game.isComingSoon ? ' coming-soon' : ''}`;
+                gameCard.setAttribute('data-category', game.category);
+                gameCard.setAttribute('data-id', game.id);
+                
+                gameCard.innerHTML = `
+                    <img src="${game.image}" alt="${game.imageAlt}">
+                    <div class="game-info">
+                        <h2 class="game-title">${game.title}</h2>
+                        <div class="game-meta">
+                            <span class="game-category">${game.category}</span>
+                            <span class="game-date">${game.date}</span>
+                        </div>
+                        <p class="game-description">${game.description}</p>
+                        <a href="${game.link}" class="game-link" ${game.isComingSoon ? 'style="background-color: #555; cursor: not-allowed;"' : ''}>
+                            ${game.isComingSoon ? 'Coming Soon' : 'Play Now'}
+                        </a>
+                    </div>
+                `;
+                
+                return gameCard;
+            }
+
+            function filterGames() {
+                showLoadingState();
+                
+                // Simulate network delay for demonstration purposes
+                setTimeout(() => {
+                    filteredGames = gameData.filter(game => {
+                        const matchesSearch = (
+                            game.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            game.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            game.category.toLowerCase().includes(searchTerm.toLowerCase())
+                        );
+                        
+                        const matchesCategory = activeCategory === 'All' || game.category === activeCategory;
+                        
+                        return matchesSearch && matchesCategory;
+                    });
+                    
+                    renderGames();
+                    hideLoadingState();
+                }, 300);
+            }
+
+            function renderGames() {
+                gamesGrid.innerHTML = '';
+                
+                if (filteredGames.length === 0) {
+                    noResultsMessage.style.display = 'block';
+                    return;
+                }
+                
+                noResultsMessage.style.display = 'none';
+                
+                filteredGames.forEach(game => {
+                    const gameCard = createGameCard(game);
+                    gamesGrid.appendChild(gameCard);
+                });
+            }
+
+            function showLoadingState() {
+                loadingSpinner.style.display = 'block';
+                gamesGrid.style.opacity = '0.5';
+            }
+
+            function hideLoadingState() {
+                loadingSpinner.style.display = 'none';
+                gamesGrid.style.opacity = '1';
+            }
+
+            // Event handlers
+            function handleSearch() {
+                searchTerm = searchInput.value;
+                filterGames();
+            }
+
+            function handleCategoryClick(event) {
+                if (!event.target.classList.contains('category-btn')) {
+                    return;
+                }
+                
+                categoryButtons.forEach(btn => btn.classList.remove('active'));
+                event.target.classList.add('active');
+                
+                activeCategory = event.target.getAttribute('data-category');
+                filterGames();
+            }
+
+            // Event listeners
+            searchInput.addEventListener('input', debounce(handleSearch, 300));
+            
+            document.querySelector('.category-filter').addEventListener('click', handleCategoryClick);
+            
+            // Utility function for debounce
+            function debounce(func, delay) {
+                let timeoutId;
+                return function() {
+                    const context = this;
+                    const args = arguments;
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => {
+                        func.apply(context, args);
+                    }, delay);
+                };
+            }
+
+            // Initial render
+            filterGames();
+
+            // Add keyboard navigation for accessibility
+            const focusableElements = [
+                searchInput,
+                ...categoryButtons,
+                ...document.querySelectorAll('.game-link'),
+                ...document.querySelectorAll('.footer-link')
+            ];
+
+            // Add tab index to focusable elements
+            focusableElements.forEach((el, index) => {
+                el.setAttribute('tabindex', index === 0 ? '0' : '0');
+            });
+        });
+    </script>
 </body>
 </html>
